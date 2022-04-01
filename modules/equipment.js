@@ -8,7 +8,7 @@ MODULES["equipment"].equipHealthDebugMessage = false;
 MODULES["equipment"].numHitsMult = 2; //This will multiply your maps.numHits, so beware
 MODULES["equipment"].mirroredDailyCap = false; //NOT needed since 5.5.0. By the way, I had JUST finished this feature =(
 
-var equipmentList = {
+const equipmentList = {
     'Dagger': {
         Upgrade: 'Dagadder',
         Stat: 'attack',
@@ -94,7 +94,32 @@ var equipmentList = {
         Equip: false
     }
 };
-var mapresourcetojob = {"food": "Farmer", "wood": "Lumberjack", "metal": "Miner", "science": "Scientist"};
+
+MODULES["equipment"].weapons = [];
+MODULES["equipment"].armors = [];
+MODULES["equipment"].prestiges = [];
+MODULES["equipment"].weaponPrestiges = [];
+MODULES["equipment"].armorPrestiges = [];
+MODULES["equipment"].metallicPrestiges = [];
+for (const [name, data] of Object.entries(equipmentList)) {
+    if (!data.Equip) {
+        continue;
+    }
+
+    if (data.Stat === 'attack') {
+        MODULES["equipment"].weapons.push(name);
+        MODULES["equipment"].weaponPrestiges.push(data.Upgrade);
+    } else if (data.Stat === 'health') {
+        MODULES["equipment"].armors.push(name);
+        MODULES["equipment"].armorPrestiges.push(data.Upgrade);
+    }
+
+    if (data.Resource === 'metal') {
+        MODULES["equipment"].armorPrestiges.push(data.Upgrade);
+    }
+}
+
+const mapresourcetojob = {"food": "Farmer", "wood": "Lumberjack", "metal": "Miner", "science": "Scientist"};
 function PrestigeValue(a){var b=game.upgrades[a].prestiges,c=game.equipment[b],d;d=c.blockNow?"block":"undefined"==typeof c.health?"attack":"health";var e=Math.round(c[d]*Math.pow(1.19,c.prestige*game.global.prestige[d]+1));return e}
 
 function equipEffect(equip, equipInfo, levelsToBuy = 1) {
@@ -203,12 +228,12 @@ var Best;
 function orangewindstack(){(9<game.equipment.Dagger.level&&0==game.upgrades.Dagadder.locked&&buyUpgrade('Dagadder',!0,!0),9<game.equipment.Mace.level&&0==game.upgrades.Megamace.locked&&buyUpgrade('Megamace',!0,!0),9<game.equipment.Polearm.level&&0==game.upgrades.Polierarm.locked&&buyUpgrade('Polierarm',!0,!0),9<game.equipment.Battleaxe.level&&0==game.upgrades.Axeidic.locked&&buyUpgrade('Axeidic',!0,!0),9<game.equipment.Greatsword.level&&0==game.upgrades.Greatersword.locked&&buyUpgrade('Greatersword',!0,!0),9<game.equipment.Arbalest.level&&0==game.upgrades.Harmbalest.locked&&buyUpgrade('Harmbalest',!0,!0),0==game.upgrades.Bootboost.locked&&buyUpgrade('Bootboost',!0,!0),0==game.upgrades.Hellishmet.locked&&buyUpgrade('Hellishmet',!0,!0),0==game.upgrades.Pantastic.locked&&buyUpgrade('Pantastic',!0,!0),0==game.upgrades.Smoldershoulder.locked&&buyUpgrade('Smoldershoulder',!0,!0),0==game.upgrades.Bestplate.locked&&buyUpgrade('Bestplate',!0,!0),0==game.upgrades.GambesOP.locked&&buyUpgrade('GambesOP',!0,!0),0==game.upgrades.Supershield.locked&&buyUpgrade('Supershield',!0,!0))}
 function dorangewindstack(){(9<game.equipment.Dagger.level&&0==game.upgrades.Dagadder.locked&&buyUpgrade('Dagadder',!0,!0),9<game.equipment.Mace.level&&0==game.upgrades.Megamace.locked&&buyUpgrade('Megamace',!0,!0),9<game.equipment.Polearm.level&&0==game.upgrades.Polierarm.locked&&buyUpgrade('Polierarm',!0,!0),9<game.equipment.Battleaxe.level&&0==game.upgrades.Axeidic.locked&&buyUpgrade('Axeidic',!0,!0),9<game.equipment.Greatsword.level&&0==game.upgrades.Greatersword.locked&&buyUpgrade('Greatersword',!0,!0),9<game.equipment.Arbalest.level&&0==game.upgrades.Harmbalest.locked&&buyUpgrade('Harmbalest',!0,!0),0==game.upgrades.Bootboost.locked&&buyUpgrade('Bootboost',!0,!0),0==game.upgrades.Hellishmet.locked&&buyUpgrade('Hellishmet',!0,!0),0==game.upgrades.Pantastic.locked&&buyUpgrade('Pantastic',!0,!0),0==game.upgrades.Smoldershoulder.locked&&buyUpgrade('Smoldershoulder',!0,!0),0==game.upgrades.Bestplate.locked&&buyUpgrade('Bestplate',!0,!0),0==game.upgrades.GambesOP.locked&&buyUpgrade('GambesOP',!0,!0),0==game.upgrades.Supershield.locked&&buyUpgrade('Supershield',!0,!0))}
 
-function windstackingprestige() {
+function windstackingprestige(HDStatus) {
     if (
-		(game.global.challengeActive != "Daily" && getEmpowerment() == "Wind" && getPageSetting('WindStackingMin') > 0 && game.global.world >= getPageSetting('WindStackingMin') && calcHDRatio() < 5) ||
-		(game.global.challengeActive == "Daily" && getEmpowerment() == "Wind" && getPageSetting('dWindStackingMin') > 0 && game.global.world >= getPageSetting('dWindStackingMin') && calcHDRatio() < 5) ||
-		(game.global.challengeActive != "Daily" && getPageSetting('wsmax') > 0 && getPageSetting('wsmaxhd') > 0 && game.global.world >= getPageSetting('wsmax') && calcHDRatio() < getPageSetting('wsmaxhd')) ||
-		(game.global.challengeActive == "Daily" && getPageSetting('dwsmax') > 0 && getPageSetting('dwsmaxhd') > 0 && game.global.world >= getPageSetting('dwsmax') && calcHDRatio() < getPageSetting('dwsmaxhd'))
+		(game.global.challengeActive != "Daily" && getEmpowerment() == "Wind" && getPageSetting('WindStackingMin') > 0 && game.global.world >= getPageSetting('WindStackingMin') && HDStatus.hdRatio < 5) ||
+		(game.global.challengeActive == "Daily" && getEmpowerment() == "Wind" && getPageSetting('dWindStackingMin') > 0 && game.global.world >= getPageSetting('dWindStackingMin') && HDStatus.hdRatio < 5) ||
+		(game.global.challengeActive != "Daily" && getPageSetting('wsmax') > 0 && getPageSetting('wsmaxhd') > 0 && game.global.world >= getPageSetting('wsmax') && HDStatus.hdRatio < getPageSetting('wsmaxhd')) ||
+		(game.global.challengeActive == "Daily" && getPageSetting('dwsmax') > 0 && getPageSetting('dwsmaxhd') > 0 && game.global.world >= getPageSetting('dwsmax') && HDStatus.hdRatio < getPageSetting('dwsmaxhd'))
 	) {
 	if (game.global.challengeActive != "Daily") orangewindstack();
 	if (game.global.challengeActive == "Daily") dorangewindstack();
@@ -243,39 +268,37 @@ function postBuy3() {
 }
 
 function armorCapped() {
-    var capped = areWeHealthLevelCapped();
-    var prestigeItemsLeft;
-    if (game.global.mapsActive)
-        prestigeItemsLeft = addSpecials(true, true, getCurrentMapObject());
-    else if (lastMapWeWereIn)
-        prestigeItemsLeft = addSpecials(true, true, lastMapWeWereIn);
-
-    const prestigeList = ['Bootboost', 'Hellishmet', 'Pantastic', 'Smoldershoulder', 'Greatersword', 'GamesOP'];
-    var numUnbought = 0;
-    for (var i = 0, len = prestigeList.length; i < len; i++) {
-        var p = prestigeList[i];
-        if (game.upgrades[p].allowed - game.upgrades[p].done > 0)
-            numUnbought++;
+    if (!areWeHealthLevelCapped()) {
+        return false;
     }
-    return capped && prestigeItemsLeft == 0 && numUnbought == 0;
+
+    const map = (game.global.mapsActive ? getCurrentMapObject() : lastMapWeWereIn);
+    if (addSpecials(true, true, map) > 0) {
+        return false;
+    }
+
+    for (const p of MODULES["equipment"].armorPrestiges) {
+        if (game.upgrades[p].allowed - game.upgrades[p].done > 0)
+            return false;
+    }
+    return true;
 }
 
 function weaponCapped() {
-    var capped = areWeAttackLevelCapped();
-    var prestigeItemsLeft;
-    if (game.global.mapsActive)
-        prestigeItemsLeft = addSpecials(true, true, getCurrentMapObject());
-    else if (lastMapWeWereIn)
-        prestigeItemsLeft = addSpecials(true, true, lastMapWeWereIn);
-
-    const prestigeList = ['Dagadder', 'Megamace', 'Polierarm', 'Axeidic', 'Greatersword', 'Harmbalest'];
-    var numUnbought = 0;
-    for (var i = 0, len = prestigeList.length; i < len; i++) {
-        var p = prestigeList[i];
-        if (game.upgrades[p].allowed - game.upgrades[p].done > 0)
-            numUnbought++;
+    if (!areWeAttackLevelCapped()) {
+        return false;
     }
-    return capped && prestigeItemsLeft == 0 && numUnbought == 0;
+
+    const map = (game.global.mapsActive ? getCurrentMapObject() : lastMapWeWereIn);
+    if (addSpecials(true, true, map) > 0) {
+        return false;
+    }
+
+    for (const p of MODULES["equipment"].weaponPrestiges) {
+        if (game.upgrades[p].allowed - game.upgrades[p].done > 0)
+            return false;
+    }
+    return true;
 }
 
 function autoLevelEquipment() {

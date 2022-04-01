@@ -36,44 +36,43 @@ function debugStance(maxPower, ignoreArmy) {
 function maxOneShotPower(considerEdges) {
     var power = 2;
 
-    //No enemy to kill
+    // No enemy to kill
     if (considerEdges && !getCurrentEnemy()) return 0;
 
-    //No overkill perk
-    if (game.portal.Overkill.level == 0) return 1;
+    // No overkill perk
+    if (game.portal.Overkill.level === 0) return 1;
 
-    //Mastery
+    // Mastery
     if (game.talents.overkill.purchased) power++;
 
-    //Ice
-    if (game.global.uberNature == "Poison") power += 2;
-    if (getEmpowerment() == "Ice" && game.empowerments.Ice.getLevel() >=  50) power++;
-    if (getEmpowerment() == "Ice" && game.empowerments.Ice.getLevel() >= 100) power++;
-
-    //No enemy to attack
-    if (considerEdges) for (var i=power; i > 1 && !getCurrentEnemy(i); i--);
+    // Ice
+    if (game.global.uberNature === "Poison") power += 2;
+    if (getEmpowerment() === "Ice") {
+        if (game.empowerments.Ice.getLevel() >=  50) power++;
+        if (game.empowerments.Ice.getLevel() >= 100) power++;
+    }
 
     return power;
 }
 
 function oneShotZone(specificStance, type, zone, maxOrMin) {
-    //Pre-Init
-    if (!type) type = preVoidCheck ? "void" : "world";
+    // Pre-Init
+    if (!type) type = AutoMapState.prepareForVoids ? "void" : "world";
     if (!zone) zone = game.global.world;
 
-    //Calculates our minimum damage
-    var baseDamage = calcOurDmg(maxOrMin ? "max" : "min", specificStance, true, type != "world");
-    var damageLeft = baseDamage + addPoison(false, (type == "world") ? zone : game.global.world);
+    // Calculates our minimum damage
+    const baseDamage = calcOurDmg(maxOrMin ? "max" : "min", specificStance, true, type !== "world");
+    let damageLeft = baseDamage + addPoison(false, (type === "world") ? zone : game.global.world);
 
-    //Calculates how many enemies we can one shot + overkill
-    for (var power=1; power <= maxOneShotPower(); power++) {
-        //Enemy Health: A C99 Dragimp (worstCase)
+    // Calculates how many enemies we can one shot + overkill
+    for (let power=1; power <= maxOneShotPower(); power++) {
+        // Enemy Health: A C99 Dragimp (worstCase)
         damageLeft -= calcEnemyHealth(type, zone, 99-maxOneShotPower()+power, "Dragimp");
 
-        //Check if we can one-shot the next enemy
+        // Check if we can one-shot the next enemy
         if (damageLeft < 0) return power-1;
 
-        //Calculates our minimum "left over" damage, which will be used by the Overkill
+        // Calculates our minimum "left over" damage, which will be used by the Overkill
         damageLeft *= 0.005 * game.portal.Overkill.level;
     }
 

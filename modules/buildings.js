@@ -58,13 +58,13 @@ function safeBuyBuilding(building) {
     return true;
 }
 
-function advancedNurseries() {
+function advancedNurseries(HDStatus) {
     //Only build nurseries if: A) Lacking Health & B) Not lacking Damage & C&D) Has max Map Stacks E) Has at least 1 Map Stack F) Not farming Spire or advN is off
     //Also, it requires less health during spire
     var a = calcHealthRatio(false, true) < getMapHealthCutOff();
-    var b = calcHDRatio() < getFarmCutOff() || weaponCapped();
+    var b = HDStatus.hdRatio < getFarmCutOff() || weaponCapped();
     var c = game.global.mapBonus >= getPageSetting('MaxMapBonushealth');
-    var d = game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') || calcHDRatio() < getMapCutOff();
+    var d = game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') || HDStatus.hdRatio < getMapCutOff();
     var e = game.global.mapBonus >= 1 || getPageSetting('MaxMapBonuslimit') == 0 || getPageSetting('MaxMapBonushealth') == 0;
     var f = !preSpireFarming || !getPageSetting('AdvancedNurseries');
     var off = !getPageSetting('AdvancedNurseries') || game.stats.highestLevel.valueTotal() < 230;
@@ -206,7 +206,7 @@ function buyBuildings() {
         if (getPageSetting('DynamicGyms')) {
 	        //Target Zone
 	        var targetZone = game.global.world;
-	        if (game.global.challengeActive == "Lead" && !preVoidCheck && game.global.world%2 == 1) targetZone++;
+	        if (game.global.challengeActive == "Lead" && !AutoMapState.prepareForVoids && game.global.world%2 == 1) targetZone++;
 
             //Enemy stats
             var block = calcOurBlock() / (game.global.brokenPlanet ? 2 : 1);

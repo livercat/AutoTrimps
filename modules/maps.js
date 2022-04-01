@@ -1,108 +1,493 @@
 //Helium
-
 MODULES.maps = {};
-MODULES.maps.NomfarmingCutoff = 10;
-MODULES.maps.NomFarmStacksCutoff = [7,30,100];
-MODULES.maps.MapTierZone = [72,47,16];
-MODULES.maps.MapTier0Sliders = [9,9,9,"Mountain"];
-MODULES.maps.MapTier1Sliders = [9,9,9,"Depths"];
-MODULES.maps.MapTier2Sliders = [9,9,9,"Random"];
-MODULES.maps.MapTier3Sliders = [9,9,9,"Random"];
-MODULES.maps.preferGardens = !getPageSetting("PreferMetal");
-MODULES.maps.SpireFarm199Maps = true;
-MODULES.maps.shouldFarmCell = 80;
 MODULES.maps.SkipNumUnboughtPrestiges = 2;
 MODULES.maps.UnearnedPrestigesRequired = 2;
-MODULES.maps.advSpecialMapMod_numZones = 3;
 
-//Psycho
-MODULES.maps.shouldFarmHigherZone = true; //Allows farming on a map level above your current zone if you can overkill in it
-MODULES.maps.forceModifier = true; //Will make elaborate attempts at keeping you at maps with the right modifier (good when farming spire or pushing)
-MODULES.maps.magmaHitsSurvived = 2; //Your geneticists are frequently lagging 1-2 zones behind when speeding through magma, which is why this is important
+let enoughDamage = true;
+let enoughHealth = true;
+let needPrestige = false;
+let skippedPrestige = false;
+let shouldFarm = false;
+let shouldFarmDamage = false;
+let lastMapWeWereIn = null;
+let preSpireFarming = false;
+let fragmentsNeeded = 0;
 
-var enoughDamage = true;
-var enoughHealth = true;
-var isFarming = false;
-var doVoids = false;
-var needToVoid = false;
-var preVoidCheck = false;
-var needPrestige = false;
-var skippedPrestige = false;
-var scryerStuck = false;
-var shouldDoMaps = false;
-var shouldFarm = false;
-var shouldFarmDamage = false;
-var lastMapWeWereIn = null;
-var preSpireFarming = false;
-var spireMapBonusFarming = false;
-var spireTime = 0;
-var doMaxMapBonus = false;
-var vanillaMapatZone = false;
-var fragmentsNeeded = 0;
+const nomFarmingCutoff = 10;
+const nomFarmStacksCutoff = [7,30,100];
+
+const mapTierZone = [72,47,16];
+const mapTier0Sliders = [9,9,9,"Mountain"];
+const mapTier1Sliders = [9,9,9,"Depths"];
+const mapTier2Sliders = [9,9,9,"Random"];
+const shouldFarmCell = 80;
 
 // mods are from best to worst
 const farmingMapMods = ["lmc", "hc", "smc", "lc", "fa"];
 const prestigeMapMods = ["p", "fa"];
 
-function updateAutoMapsStatus(get) {
-    var status;
-    var minSp = getPageSetting('MinutestoFarmBeforeSpire');
-    var wantedHealth = getMapHealthCutOff() / calcHealthRatio(false, true);
-    var wantedDamage = calcHDRatio() / getMapCutOff();
-    var wantedFarmDmg = calcHDRatio() / getFarmCutOff();
+ // Your geneticists are frequently lagging 1-2 zones behind when speeding through magma, which is why this is important
+const magmaHitsSurvived = 2;
 
-    //Running MAZ
-    if (vanillaMapatZone) status = "Running&nbspVanilla MAZ";
+const prestigeList = MODULES.equipment.prestiges;
+const prestigeMetallics = MODULES.equipment.metallicPrestiges;
+const prestigeWeapons = MODULES.equipment.weaponPrestiges;
+const skipPrestigeMsg = '<br><b style="font-size:.8em;color:pink;margin-top:0.2vw">Prestige Skipped</b>';
 
-    //Raiding
-    else if (game.global.mapsActive && autoTrimpSettings["AutoMaps"].value == 0 && getCurrentMapObject().level > game.global.world && getCurrentMapObject().location != "Void" && getCurrentMapObject().location != "Bionic") status = 'Prestige Raiding';
-    else if (game.global.mapsActive && autoTrimpSettings["AutoMaps"].value == 0 && getCurrentMapObject().level > game.global.world && getCurrentMapObject().location == "Bionic") status = 'BW Raiding';
+const voidPrefixes = {
+    'Deadly': 10,
+    'Heinous': 11,
+    'Poisonous': 20,
+    'Destructive': 30
+};
+var voidSuffixes = {
+    'Descent': 7.077,
+    'Void': 8.822,
+    'Nightmare': 9.436,
+    'Pit': 10.6
+};
 
-    //Fail Safes
-    else if (getPageSetting('AutoMaps') == 0) status = 'Off';
-    else if (game.global.challengeActive == "Mapology" && game.challenges.Mapology.credits < 1) status = 'Out of Map Credits';
+const uniqueMaps = {
+    'The Block': {
+        zone: 11,
+        challenges: ["Scientist", "Trimp"],
+        speedrun: 'blockTimed'
+    },
+    'The Wall': {
+        zone: 15,
+        challenges: [],
+        speedrun: 'wallTimed'
+    },
+    'Dimension of Anger': {
+        zone: 20,
+        challenges: ["Discipline", "Metal", "Size", "Frugal", "Coordinate"],
+        speedrun: 'angerTimed'
+    },
+    'Trimple Of Doom': {
+        zone: 33,
+        challenges: ["Meditate", "Anger"],
+        speedrun: 'doomTimed'
+    },
+    'The Prison': {
+        zone: 80,
+        challenges: ["Electricity", "Mapocalypse"],
+        speedrun: 'prisonTimed'
+    },
+    'Imploding Star': {
+        zone: 170,
+        challenges: ["Devastation"],
+        speedrun: 'starTimed'
+    },
+    'Bionic Wonderland': {
+        zone: 125,
+        challenges: ["Crushed"],
+        speedrun: 'bionicTimed'
+    }
+};
 
-    //Spire
-    else if (preSpireFarming) {
-        var secs = Math.floor(60 - (spireTime * 60) % 60).toFixed(0);
-        var mins = Math.floor(minSp - spireTime).toFixed(0);
-        var hours = ((minSp - spireTime) / 60).toFixed(2);
-        var spiretimeStr = (minSp - spireTime >= 60) ?
-            (hours + 'h') : (mins + 'm:' + (secs >= 10 ? secs : ('0' + secs)) + 's');
-        status = 'Farming for Spire ' + spiretimeStr + ' left';
+const autoMapTarget = Object.freeze({
+    // Main modes of the Automapper.
+    // Their order doesn't matter in code, but for readability it generally reflects the priority -
+    // meaning that if the Automapper chooses a target, remaining targets are irrelevant;
+    // For example, if it chose "forceMapBonus", we need to run maps until we get the max bonus
+    forceMapBonus: Symbol("forceMapBonus"),
+    farming: Symbol("farming"),
+    nomFarming: Symbol("nomFarming"),
+    prestige: Symbol("prestige"),
+    voids: Symbol("voids"),
+    advancing: Symbol("advancing"),
+});
+
+
+class AutoMapState {
+    // A global cache of all Automapper-related calculations.
+    // You don't need to instantiate it, use its fields and methods directly like this: "AutoMapState.clear()".
+    // This object can be accessed from other modules,
+    // so make sure to not skip calculations for any externally-used fields.
+    constructor() {
+        throw("Don't instantiate this class, use its static methods and fields")
     }
 
-    else if (spireMapBonusFarming) status = 'Getting Spire Map Bonus';
-    else if (getPageSetting('SkipSpires') == 1 && ((game.global.challengeActive != 'Daily' && isActiveSpireAT()) || (game.global.challengeActive == 'Daily' && disActiveSpireAT()))) status = 'Skipping Spire';
-    else if (doMaxMapBonus) status = 'Max Map Bonus After Zone';
-    //else if (!game.global.mapsUnlocked) status = '&nbsp;';
-    else if (needPrestige && !doVoids) status = 'Prestige';
-    else if (doVoids) {
-        var stackedMaps = Fluffy.isRewardActive('void') ? countStackedVoidMaps() : 0;
-        status = 'Void Maps: ' + game.global.totalVoidMaps + ((stackedMaps) ? " (" + stackedMaps + " stacked)" : "") + ' remaining';
+    // public fields
+    static needDamage = false;
+    static needHealth = false;
+    static prepareForVoids = false; // we're at Void Map zone, and have Void Maps to run
+    static needPrestige = false;
+    static skippedPrestige = false;
+    static lastMapWeWereIn = null;
+    static target = null;
+    static message = 'Advancing';
+
+    // private fields
+    static #canRunVoids = false; // we're at Void Map zone, have Void Maps to run, and at >= Void Map cell
+    static #mustGetMaxMapBonus = false;
+
+    static update(HDStatus) {
+        this.#clear();
+
+        const challenge = game.global.challengeActive;
+        // if we can't run maps for any reason, all other calculations are meaningless and should be skipped
+        if (!this.#canAccessMaps(challenge)) {
+            return;
+        }
+
+        const prestige = getPageSetting('Prestige', 'Off');
+        this.#setPrestigeStatus(challenge, prestige)
+
+        const isC2 = game.global.runningChallengeSquared;
+        const isDaily = challenge === "Daily";
+        this.#setVoidMapStatus(isC2, isDaily);
+
+        // Health and Damage calculations use void map status, so they should be placed after #setVoidMapsStatus()
+        const hdRatio = HDStatus.hdRatio;
+        const minHitsSurvived = getMapHealthCutOff();
+        const hitsSurvived = calcHealthRatio(false, true);
+        this.needHealth = hitsSurvived <= minHitsSurvived && !armorCapped();
+        this.needDamage = hdRatio >= getMapCutOff() && !weaponCapped();
+        this.#setHealthAndDamageStatus(hdRatio, hitsSurvived, minHitsSurvived);
+
+        const isAtSpire = isActiveSpireAT() || disActiveSpireAT();
+        const maxMapBonusLimit = getPageSetting('MaxMapBonuslimit');
+        this.#checkMaxMapBonus(isAtSpire, maxMapBonusLimit);
+
+        const mapCutoff = getMapCutOff();
+        const farmCutoff = getFarmCutOff();
+        this.#checkFarming(isAtSpire, maxMapBonusLimit, hdRatio, mapCutoff, farmCutoff, hitsSurvived, minHitsSurvived);
+
+        const currentMap = getCurrentMapObject();
+        this.#checkNomFarming(challenge, hdRatio, currentMap);
+
+        let shouldFarmLowerZone = getPageSetting('LowerFarmingZone');
+        const isInWorld = !game.global.mapsActive && !game.global.preMapsActive;
+        const isInMapChamber = !game.global.mapsActive && game.global.preMapsActive;
+        const isInsideMap = game.global.mapsActive && !game.global.preMapsActive;
+        const farmCutoff = getFarmCutOff();
+
+
+        let ourBaseDamage = calcOurDmg("avg", "X");
+
     }
-    else if (shouldFarm && !enoughHealth && shouldFarmDamage) status = 'Farm ' + wantedHealth.toFixed(2) + 'x&nbspHealth & ' + wantedFarmDmg.toFixed(2) + 'x&nbspDamage';
-    else if (shouldFarm && !enoughHealth) status = 'Farm ' + wantedHealth.toFixed(2) + 'x&nbspmore Health ';
-    else if (shouldFarm) status = 'Farm ' + wantedFarmDmg.toFixed(2) + 'x&nbsp+Dmg';
-    else if (!enoughHealth && !enoughDamage) status = 'Want ' + wantedHealth.toFixed(2) + 'x&nbspHealth & ' + wantedDamage.toFixed(2)  + 'x&nbspDamage';
-    else if (!enoughDamage) status = 'Want ' + wantedDamage.toFixed(2) + 'x&nbsp+Dmg';
-    else if (!enoughHealth) status = 'Want ' + wantedHealth.toFixed(2) + 'x&nbsp+Hp';
-    else if (enoughHealth && enoughDamage) status = 'Advancing';
 
-    if (skippedPrestige)
-        status += '<br><b style="font-size:.8em;color:pink;margin-top:0.2vw">Prestige Skipped</b>';
+    static #clear() {
+        this.needDamage = false;
+        this.needHealth = false;
+        this.prepareForVoids = false;
+        this.needPrestige = false;
+        this.skippedPrestige = false;
+        this.lastMapWeWereIn = null;
+        this.target = null;
+        this.message = 'Advancing';
 
-    //hider he/hr% status
-    var getPercent = (game.stats.heliumHour.value() / (game.global.totalHeliumEarned - (game.global.heliumLeftover + game.resources.helium.owned))) * 100;
-    var lifetime = (game.resources.helium.owned / (game.global.totalHeliumEarned - game.resources.helium.owned)) * 100;
-    var hiderStatus = 'He/hr: ' + getPercent.toFixed(3) + '%<br>&nbsp;&nbsp;&nbsp;He: ' + lifetime.toFixed(3) + '%';
-
-    if (get) {
-        return [status, getPercent, lifetime];
-    } else {
-        document.getElementById('autoMapStatus').innerHTML = status;
-        document.getElementById('hiderStatus').innerHTML = hiderStatus;
+        this.#canRunVoids = false;
     }
+
+    static #setTarget(target, message) {
+        if (!this.target) {
+            this.target = target;
+            this.message = message;
+        }
+    }
+
+    static #canAccessMaps(challenge) {
+        // returns false if we can't access maps for any reason
+
+        if (!game.global.mapsUnlocked) {
+            return false;
+        }
+
+        if (challenge === "Mapology" && game.challenges.Mapology.credits < 1) {
+            this.message = 'Out of Map Credits';
+            return false;
+        }
+
+        if (isVanillaMAZActive()) {
+            this.message = "Running&nbsp;Vanilla MAZ";
+            return false;
+        }
+
+        return true;
+    }
+
+    static #setVoidMapStatus(isC2, isDaily) {
+        // don't have any voids
+        if (game.global.totalVoidMaps === 0) {
+            return;
+        }
+        // running C2 and "no VMs in C2"
+        if (isC2 && getPageSetting('novmsc2')) {
+            return;
+        }
+
+        let voidCellField, voidPoisonField, voidMinField, voidMaxField;
+        if (isDaily) {
+            // Daily Voids
+            voidCellField = 'dvoidscell';
+            voidPoisonField = 'drunnewvoidspoison';
+            voidMinField = 'DailyVoidMod';
+            voidMaxField = 'dRunNewVoidsUntilNew';
+        } else {
+            // Regular Voids
+            voidCellField = 'voidscell';
+            voidPoisonField = 'runnewvoidspoison';
+            voidMinField = 'VoidMaps';
+            voidMaxField = 'RunNewVoidsUntilNew';
+        }
+        // What Zone Range to run Voids at
+        const minVoidZone = max(0, getPageSetting(voidMinField, 0));
+        if (minVoidZone === 0) {
+            return;
+        }
+        let maxVoidZone = 0;
+        if (!getPageSetting(voidPoisonField) || getEmpowerment() === 'Poison') {
+            maxVoidZone = minVoidZone + max(0, getPageSetting(voidMaxField, 0));
+        }
+        // Check zone range
+        if (game.global.world < minVoidZone || game.global.world > maxVoidZone) {
+            return;
+        }
+        // What cell to run Voids at
+        const voidCell = getPageSetting(voidCellField, 90);
+
+        this.prepareForVoids = (game.global.lastClearedCell + 1) >= Math.floor((voidCell - 1) / 10) * 10;
+        this.#canRunVoids = this.prepareForVoids && game.global.lastClearedCell + 1 >= voidCell;
+    }
+
+    static #setPrestigeStatus(challenge, prestige) {
+        if (challenge === "Frugal") {
+            return;
+        }
+        const prestigeZ = (prestige !== "Off" && game.mapUnlocks[prestige]) ? game.mapUnlocks[prestige].last : 9e10;
+        const forcePrestigeZ = getPageSetting('ForcePresZ', 0);
+        if (forcePrestigeZ > 0 && (game.global.world >= forcePrestigeZ)) {
+            this.needPrestige = prestigeList.some(p => game.mapUnlocks[p].last <= (game.global.world - 5));
+            // needPrestige = (offlineProgress.countMapItems(game.global.world) !== 0); TODO - Test this!
+        } else {
+            this.needPrestige = prestigeZ <= (game.global.world - 5);
+        }
+
+        if (!this.needPrestige) {
+            return;
+        }
+
+        // Prestige skip
+        const pSkip = getPageSetting('PrestigeSkip1_2');
+        let skip1 = false;
+        let skip2 = false;
+
+        if (pSkip === 2) {
+            // need only skip1
+            skip2 = true;
+        } else if (pSkip === 3) {
+            // need only skip2
+            skip1 = true;
+        }
+
+        // Prestige Skip 1: if we have some unbought prestiges, don't get new ones
+        if ([1, 2].includes(pSkip)) {
+            let skipUnbought = 0;
+            for (const p of prestigeMetallics) {
+                if (game.upgrades[p].allowed - game.upgrades[p].done > 0) {
+                    skipUnbought++;
+                    skip1 = skipUnbought >= MODULES.maps.SkipNumUnboughtPrestiges;
+                    if (skip1) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Prestige Skip 2: if there are few weapon prestiges left in maps, don't get them
+        if ([1, 3].includes(pSkip)) {
+            const numLeft = prestigeWeapons.filter(p => game.mapUnlocks[p].last <= (game.global.world - 5));
+            skip2 = numLeft.length <= MODULES.maps.UnearnedPrestigesRequired;
+        }
+
+        if (skip1 && skip2) {
+            this.needPrestige = false;
+            this.skippedPrestige = true;
+        }
+    }
+
+    static #setHealthAndDamageStatus(hdRatio, hitsSurvived, minHitsSurvived) {
+        this.needHealth = hitsSurvived <= minHitsSurvived && !armorCapped();
+        this.needDamage = hdRatio >= getMapCutOff() && !weaponCapped();
+    }
+
+    static #checkFarming(isAtSpire, maxMapBonusLimit, hdRatio, mapCutoff, farmCutoff, hitsSurvived, minHitsSurvived) {
+        if (!this.needDamage && !this.needHealth) {
+            return;
+        }
+
+        if (isAtSpire && getPageSetting('SkipSpires') === 1) {
+            this.message = 'Skipping Spire'
+            return;
+        }
+
+        const mapBonus = game.global.mapBonus;
+        const maxMapBonusHealth = getPageSetting('MaxMapBonushealth');
+        const farmingHD = getPageSetting('DisableFarm');
+        const mapBonusIsAvailable = mapBonus < maxMapBonusLimit || (this.needHealth && mapBonus < maxMapBonusHealth);
+
+        if (farmingHD > 0 || mapBonusIsAvailable) {
+            const wantedHealth = minHitsSurvived / hitsSurvived;
+            const wantedDamage = hdRatio / mapCutoff;
+            const wantedFarmDmg = hdRatio / farmCutoff;
+
+            const targets = [];
+            if (wantedDamage > 1) {
+                targets.push(wantedDamage.toFixed(2) + 'x&nbsp;more Dmg');
+            } else if (shouldFarm && wantedFarmDmg > 1) {
+                targets.push(wantedFarmDmg.toFixed(2) + 'x&nbsp;more Dmg')
+            }
+
+            if (wantedHealth > 1) {
+                targets.push(wantedHealth.toFixed(2) + 'x&nbsp;more Health')
+            }
+
+            if (targets.length > 0) {
+                const state = shouldFarm ? "Farm" : "Want";
+                return augmentStatus(state + ' ' + targets.join(', '));
+            }
+            this.#setTarget(autoMapTarget.farming);
+        }
+    }
+
+    static #checkNomFarming(challenge, hdRatio, currentMap) {
+        if (challenge !== 'Nom' || !getPageSetting('FarmWhenNomStacks7')) {
+            return;
+        }
+        if (game.global.mapsActive && game.global.mapGridArray[game.global.lastClearedMapCell + 1].nomStacks >= nomFarmStacksCutoff[2]) {
+            // map enemy has >=100 Nom stacks, uh oh. if it's a void map, restart it. otherwise, get stuck probably D:
+            this.#setTarget(autoMapTarget.nomFarming);
+            if (currentMap.location === "Void") {
+                // restart void
+                mapsClicked(true);
+            }
+        }
+        if (hdRatio < nomFarmingCutoff && game.global.mapBonus >= 10) {
+            // can't run more maps
+            return;
+        }
+        if (game.global.gridArray[99].nomStacks > nomFarmStacksCutoff[0]) {
+            // improbability has >7 Nom stacks
+            this.#setTarget(autoMapTarget.nomFarming);
+        }
+        if (game.global.gridArray[99].nomStacks >= nomFarmStacksCutoff[1]) {
+            // improbability has >=30 Nom stacks
+            this.#setTarget(autoMapTarget.nomFarming);
+        } else if (!game.global.mapsActive && game.global.gridArray[game.global.lastClearedCell + 1].nomStacks >= nomFarmStacksCutoff[2]) {
+            // world enemy has >=100 Nom stacks
+            this.#setTarget(autoMapTarget.nomFarming);
+        }
+    }
+
+    static #checkMaxMapBonus(isAtSpire, maxMapBonusLimit) {
+        if (isAtSpire && getPageSetting('MaxStacksForSpire') && game.global.mapBonus < maxMapBonusLimit) {
+            this.#setTarget(autoMapTarget.forceMapBonus, 'Getting max Map Bonus for Spire');
+        }
+        const maxMapBonusZ = getPageSetting('MaxMapBonusAfterZone', -1);
+        const forceMaxMapBonus = (maxMapBonusZ >= 0 && game.global.world >= maxMapBonusZ && game.global.mapBonus < maxMapBonusLimit );
+        if (forceMaxMapBonus) {
+            this.#setTarget(autoMapTarget.forceMapBonus, 'Force max Map Bonus after z' + getPageSetting('MaxMapBonusAfterZone'));
+        }
+    }
+}
+
+function augmentStatus(status) {
+    if (skippedPrestige) {
+        return status + skipPrestigeMsg;
+    }
+    return status
+}
+
+function getAutoMapsStatus(HDStatus) {
+    if (isVanillaMAZActive()) {
+        return "Running&nbspVanilla MAZ";
+    }
+    if (game.global.challengeActive === "Mapology" && game.challenges.Mapology.credits < 1) {
+        return 'Out of Map Credits';
+    }
+    const isInMap = game.global.mapsActive;
+    const currentMap = getCurrentMapObject();
+    const autoMapsDisabled = getPageSetting('AutoMaps') === 0;
+    if (autoMapsDisabled) {
+        if (isInMap && currentMap.level > game.global.world) {
+            if (currentMap.location === "Bionic") {
+                return 'BW Raiding';
+            } else if (currentMap.location !== "Void") {
+                return 'Prestige Raiding';
+            }
+        }
+        return 'Off';
+    }
+
+    // Spire
+    const isAtSpire = isActiveSpireAT() || disActiveSpireAT();
+    if (isAtSpire) {
+        if (getPageSetting('SkipSpires') === 1) {
+            return augmentStatus('Skipping Spire');
+        }
+        if (preSpireFarming) {
+            const spireTime = new Date().getTime() - game.global.zoneStarted;
+            const spireFarmingMinutes = getPageSetting('MinutestoFarmBeforeSpire');
+            const secs = Math.floor(60 - (spireTime * 60) % 60).toFixed(0);
+            const mins = Math.floor(spireFarmingMinutes - spireTime).toFixed(0);
+            const hours = ((spireFarmingMinutes - spireTime) / 60).toFixed(2);
+            const spiretimeStr = (spireFarmingMinutes - spireTime >= 60) ?
+                (hours + 'h') : (mins + 'm:' + (secs >= 10 ? secs : ('0' + secs)) + 's');
+            return augmentStatus('Farming for Spire ' + spiretimeStr + ' left');
+        }
+        const spireMapBonusFarming = getPageSetting('MaxStacksForSpire') && game.global.mapBonus < 10;
+        if (spireMapBonusFarming) {
+            return augmentStatus('Getting Spire Map Bonus');
+        }
+    }
+
+    const maxMapBonusZ = getPageSetting('MaxMapBonusAfterZone');
+    const forceMaxMapBonus = (maxMapBonusZ >= 0 && game.global.mapBonus < maxMapBonusLimit && game.global.world >= maxMapBonusZ);
+    if (forceMaxMapBonus) {
+        return augmentStatus('Force max Map Bonus after z' + getPageSetting('MaxMapBonusAfterZone'));
+    }
+    if (needPrestige && !doVoids) {
+        return augmentStatus('Prestige');
+    }
+    if (doVoids) {
+        const stackedMaps = Fluffy.isRewardActive('void') ? countStackedVoidMaps() : 0;
+        const stackedMapsMsg = ((stackedMaps) ? " (" + stackedMaps + " stacked)" : "");
+        return augmentStatus('Void Maps: ' + game.global.totalVoidMaps + stackedMapsMsg + ' remaining');
+    }
+
+    const hdRatio = HDStatus.hdRatio;
+    const wantedHealth = getMapHealthCutOff() / calcHealthRatio(false, true);
+    const wantedDamage = hdRatio / getMapCutOff();
+    const wantedFarmDmg = hdRatio / getFarmCutOff();
+
+    const targets = [];
+    if (wantedDamage > 1) {
+        targets.push(wantedDamage.toFixed(2) + 'x&nbsp;more Dmg');
+    } else if (shouldFarm && wantedFarmDmg > 1) {
+        targets.push(wantedFarmDmg.toFixed(2) + 'x&nbsp;more Dmg')
+    }
+
+    if (wantedHealth > 1) {
+        targets.push(wantedHealth.toFixed(2) + 'x&nbsp;more Health')
+    }
+
+    if (targets.length > 0) {
+        const state = shouldFarm ? "Farm" : "Want";
+        return augmentStatus(state + ' ' + targets.join(', '));
+    }
+
+    return augmentStatus('Advancing');
+}
+
+function updateAutoMapsStatus() {
+    // he/hr% status
+    const getPercent = (game.stats.heliumHour.value() / (game.global.totalHeliumEarned - (game.global.heliumLeftover + game.resources.helium.owned))) * 100;
+    const lifetime = (game.resources.helium.owned / (game.global.totalHeliumEarned - game.resources.helium.owned)) * 100;
+    const hiderStatus = 'He/hr: ' + getPercent.toFixed(3) + '%<br>&nbsp;&nbsp;&nbsp;He: ' + lifetime.toFixed(3) + '%';
+    document.getElementById('autoMapStatus').innerHTML = getAutoMapsStatus();
+    document.getElementById('hiderStatus').innerHTML = hiderStatus;
 }
 
 function _updateMapCost() {
@@ -111,7 +496,7 @@ function _updateMapCost() {
     return fragmentsNeeded;
 }
 
-function testMapSpecialModController(noLog) {
+function checkMapMods(noLog) {
     let mapCost = _updateMapCost();
     if (mapCost > game.resources.fragments.owned) {
         // not enough fragments even for a base map
@@ -137,7 +522,7 @@ function testMapSpecialModController(noLog) {
         return true;
     }
     let modPool = [];
-    if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage)) {
+    if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (AutoMapState.prepareForVoids && !enoughDamage)) {
         modPool = farmingMapMods;
     } else if (needPrestige && enoughDamage) {
         modPool = prestigeMapMods;
@@ -187,602 +572,452 @@ function testMapSpecialModController(noLog) {
 }
 
 function getMapHealthCutOff(pure) {
-    //Base and Spire cutOffs
-    var cut = getPageSetting('NumHitsSurvived');
-    if (pure) return cut;
-
-    //Spire
-    if (game.global.spireActive) return getPageSetting('SpireHitsSurvived');
-
-    //Magma
-    if (mutations.Magma.active()) cut *= MODULES.maps.magmaHitsSurvived;
-
-    //Void Map cut off - will ALSO scale with scryer, if scrying on void maps
-    if (preVoidCheck) {
-        if (getPageSetting("scryvoidmaps")) cut *= getPageSetting('ScryerHitsMult');
-        return cut * getPageSetting('VoidHitsMult');
+    // Base and Spire cutOffs
+    let cutoff = getPageSetting('NumHitsSurvived');
+    if (pure) {
+        return cutoff;
     }
 
-    //Scryer Multiplier (only if scrying on corrupted)
-    if (scryingCorruption() && game.global.challengeActive != "Domination") return cut * getPageSetting('ScryerHitsMult');
+    // Spire
+    if (game.global.spireActive) {
+        return getPageSetting('SpireHitsSurvived');
+    }
 
-    return cut;
+    // Magma
+    if (mutations.Magma.active()) {
+        cutoff *= magmaHitsSurvived;
+    }
+
+    // Void Map cut off - will ALSO scale with scryer, if scrying on void maps
+    if (AutoMapState.prepareForVoids) {
+        if (getPageSetting("scryvoidmaps")) {
+            cutoff *= getPageSetting('ScryerHitsMult');
+        }
+        return cutoff * getPageSetting('VoidHitsMult');
+    }
+
+    // Scryer Multiplier (only if scrying on corrupted)
+    if (scryingCorruption() && game.global.challengeActive !== "Domination") {
+        return cutoff * getPageSetting('ScryerHitsMult');
+    }
+
+    return cutoff;
 }
 
 function getMapCutOff(pure) {
-    //Init
-    var cut = getPageSetting("mapcuntoff");
-    var mapology = game.global.challengeActive == "Mapology";
-    var daily = game.global.challengeActive == "Daily";
-    var c2 = game.global.runningChallengeSquared;
+    let cutoff = getPageSetting("mapcuntoff");
+    const mapology = game.global.challengeActive === "Mapology";
+    const daily = game.global.challengeActive === "Daily";
+    const c2 = game.global.runningChallengeSquared;
 
-    //Unaltered mapCutOff
-    if (pure) return cut;
+    if (pure) {
+        return cutoff;
+    }
 
-    //Spire
-    if (game.global.spireActive) return getPageSetting('SpireHD');
+    // Spire
+    if (game.global.spireActive) {
+        return getPageSetting('SpireHD');
+    }
 
-    //Mapology
-    if (getPageSetting("mapc2hd") > 0 && mapology) cut = getPageSetting("mapc2hd");
+    // Mapology
+    if (getPageSetting("mapc2hd") > 0 && mapology) {
+        cutoff = getPageSetting("mapc2hd");
+    }
 
-    //Windstacking
-    var wind = getEmpowerment() == 'Wind';
-    var autoStance, windMin, windCut
+    // Windstacking
+    const wind = getEmpowerment() === 'Wind';
+    let autoStance, windMin, windCut
     if (daily) {
-        autoStance = getPageSetting("AutoStance") == 3 || getPageSetting("use3daily") == true;
+        autoStance = getPageSetting("AutoStance") === 3 || getPageSetting("use3daily");
         windMin = getPageSetting("dWindStackingMin") > 0 && game.global.world >= getPageSetting("dWindStackingMin");
         windCut = getPageSetting("dwindcutoffmap") > 0;
     }
     else {
-        autoStance = getPageSetting("AutoStance") == 3;
+        autoStance = getPageSetting("AutoStance") === 3;
         windMin = getPageSetting("WindStackingMin") > 0 && game.global.world >= getPageSetting("WindStackingMin")
         windCut = getPageSetting("windcutoffmap") > 0
     }
 
-    //Windstack
-    if (wind && !c2 && autoStance && windMin && windCut) cut = getPageSetting("windcutoffmap");
+    // Windstack
+    if (wind && !c2 && autoStance && windMin && windCut) {
+        cutoff = getPageSetting("windcutoffmap");
+    }
 
-    //Void and Scry cut off
-    if (preVoidCheck) return cut * getPageSetting('VoidHDMult');
-    if (scryingCorruption() && game.global.challengeActive != "Domination") return cut / getPageSetting('ScryerHDDiv');
+    // Void and Scry cut off
+    if (AutoMapState.prepareForVoids) {
+        return cutoff * getPageSetting('VoidHDMult');
+    }
+    if (scryingCorruption() && game.global.challengeActive !== "Domination") {
+        return cutoff / getPageSetting('ScryerHDDiv');
+    }
 
-    return cut;
+    return cutoff;
 }
 
 function getFarmCutOff() {
-    //Int
-    var cut = getPageSetting("DisableFarm");
+    let cutoff = getPageSetting("DisableFarm");
 
-    //Spire
-    if (game.global.spireActive) return getPageSetting('SpireHD');
+    // Spire
+    if (game.global.spireActive) {
+        return getPageSetting('SpireHD');
+    }
 
     //Void and Scry
-    if (preVoidCheck) return cut * getPageSetting('VoidHDMult');
-    if (scryingCorruption() && game.global.challengeActive != "Domination") return cut / getPageSetting('ScryerHDDiv');
+    if (AutoMapState.prepareForVoids) {
+        return cutoff * getPageSetting('VoidHDMult');
+    }
+    if (scryingCorruption() && game.global.challengeActive !== "Domination") {
+        return cutoff / getPageSetting('ScryerHDDiv');
+    }
 
-    return cut;
+    return cutoff;
 }
 
-function getMapRatio(map, customLevel, customDiff) {
-    //Init
-    var level = customLevel ? customLevel : map.level;
-    var diff = customDiff ? customDiff : map.difficulty;
+function getMapRatio(map, customLevel, customDiff, isPreVoidCell) {
+    const level = customLevel ? customLevel : map.level;
+    const diff = customDiff ? customDiff : map.difficulty;
 
-    //Calc
-    var mapDmg = (calcHDRatio(level, "map") / diff) / getMapCutOff(true);
-    var mapHp = getMapHealthCutOff(true) / calcHealthRatio(false, true, "map", level, diff);
+    const mapDmg = (calcHDRatio(level, "map", isPreVoidCell) / diff) / getMapCutOff(true);
+    const mapHp = getMapHealthCutOff(true) / calcHealthRatio(false, true, "map", level, diff);
     return Math.max(mapDmg, mapHp);
 }
 
-function autoMap() {
-    //Failsafes
-    if (!game.global.mapsUnlocked || calcOurDmg() <= 0) {
-        vanillaMapatZone = false;
-        enoughDamage = true;
-        enoughHealth = true;
-        shouldFarm = false;
-        return;
+function getMapScore(map, modPool) {
+    // mod pools are ordered from best to worst, so we invert the index to get the score
+    const modScore = (modPool.length - (modPool.includes(map.bonus) ? modPool.indexOf(map.bonus) : 999));
+    return [map.level, modScore]
+}
+
+function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel) {
+    if (map2.level < minLevel || map2.level > maxLevel) {
+        return map1;
     }
-
-    //No Mapology Credits HUD Update
-    if (game.global.challengeActive == "Mapology" && game.challenges.Mapology.credits < 1) {
-        vanillaMapatZone = false
-        return;
+    if (getMapScore(map1, modPool) < getMapScore(map2, modPool)){
+        return map2;
+    } else {
+        return map1;
     }
+}
 
-    //MAZ
-    vanillaMapatZone = false;
-    if (game.options.menu.mapAtZone.enabled && game.global.canMapAtZone) {
-        for (var x = 0; x < game.options.menu.mapAtZone.setZone.length; x++) {
-            var option = game.options.menu.mapAtZone.setZone[x];
-            var world = game.global.world;
-            var validRange = world >= option.world && world <= option.through;
-            var mazZone = validRange && (world == option.world && option.times == -1 || (world - option.world) % option.times == 0);
-            if (mazZone && option.cell == game.global.lastClearedCell+2) vanillaMapatZone = true;
-        }
-
-        //MAZ is active
-        if (vanillaMapatZone) return;
-    }
-
-    //Vars
-    var customVars = MODULES["maps"];
-    var prestige = autoTrimpSettings.Prestige.selected;
-    var challSQ = game.global.runningChallengeSquared;
-    var extraMapLevels = 0;
-
-    //Reset to defaults
-    if (prestige != "Off" && game.options.menu.mapLoot.enabled != 1) toggleSetting('mapLoot');
-    if ((game.options.menu.repeatUntil.enabled == 1 || game.options.menu.repeatUntil.enabled == 2 || game.options.menu.repeatUntil.enabled == 3) && !game.global.mapsActive && !game.global.preMapsActive) toggleSetting('repeatUntil');
-    if (game.options.menu.exitTo.enabled != 0) toggleSetting('exitTo');
-    if (game.options.menu.repeatVoids.enabled != 0) toggleSetting('repeatVoids');
-
-    //Reset to defaults when on world grid
-    if (!game.global.mapsActive && !game.global.preMapsActive) {
-        if (game.global.repeatMap == true) repeatClicked();
-        if (game.global.selectedMapPreset >= 4) game.global.selectedMapPreset = 1;
-        if (document.getElementById('advExtraLevelSelect').value > 0)
-            document.getElementById('advExtraLevelSelect').value = "0";
-    }
-
-    //Void Vars
-    var minVoidZone = 0;
-    var maxVoidZone = 0;
-    var voidCell = 0;
-    var poisonOK;
-
-    //Regular Run Voids
-    if (game.global.challengeActive != "Daily") {
-        //What cell to run Voids at
-        voidCell = ((getPageSetting('voidscell') > 0) ? getPageSetting('voidscell') : 90);
-
-        //What Zone Range to run Voids at
-        poisonOK = !getPageSetting('runnewvoidspoison') || getEmpowerment() == 'Poison';
-        if (getPageSetting('VoidMaps') > 0) minVoidZone = getPageSetting('VoidMaps');
-        if (getPageSetting('RunNewVoidsUntilNew') > 0 && poisonOK) maxVoidZone = getPageSetting('RunNewVoidsUntilNew');
-    }
-
-    //Daily Voids
-    else {
-        //What cell to run Daily Voids at
-        voidCell = ((getPageSetting('dvoidscell') > 0) ? getPageSetting('dvoidscell') : 90);
-
-        //What Zone Range to run Voids at
-        poisonOK = !getPageSetting('drunnewvoidspoison') || getEmpowerment() == 'Poison';
-        if (getPageSetting('DailyVoidMod') > 0) minVoidZone = getPageSetting('DailyVoidMod');
-        if (getPageSetting('dRunNewVoidsUntilNew') > 0 && poisonOK) maxVoidZone = getPageSetting('dRunNewVoidsUntilNew');
-    }
-
-    //Convert maxZone from an modifier (+1, +2...) to an fixed zone value (65, 66...)
-    maxVoidZone += minVoidZone;
-
-    //Checks if it's on the right zone range and with voids available
-    var preVoidCell = Math.floor((voidCell-1)/10)*10;
-    preVoidCheck = minVoidZone > 0 && game.global.totalVoidMaps > 0 && game.global.world >= minVoidZone && game.global.world <= maxVoidZone;
-    preVoidCheck &= game.global.lastClearedCell + 1 >= preVoidCell;
-    needToVoid = preVoidCheck && game.global.lastClearedCell + 1 >= voidCell;
-
-    var voidArrayDoneS = [];
-    if (game.global.challengeActive != "Daily" && getPageSetting('onlystackedvoids') == true) {
-        for (var mapz in game.global.mapsOwnedArray) {
-            var theMapz = game.global.mapsOwnedArray[mapz];
-            if (theMapz.location == 'Void' && theMapz.stacked > 0) {
-                voidArrayDoneS.push(theMapz);
-            }
-        }
-    }
-
-    if (
-        (game.global.totalVoidMaps <= 0) ||
-        (!needToVoid) ||
-        (getPageSetting('novmsc2') == true && game.global.runningChallengeSquared) ||
-        (game.global.challengeActive != "Daily" && game.global.totalVoidMaps > 0 && getPageSetting('onlystackedvoids') == true && voidArrayDoneS.length < 1)
-    ) {
-        doVoids = false;
-    }
-
-    //Prestige
-    if ((getPageSetting('ForcePresZ') >= 0) && ((game.global.world + extraMapLevels) >= getPageSetting('ForcePresZ'))) {
-        const prestigeList = ['Supershield', 'Dagadder', 'Megamace', 'Polierarm', 'Axeidic', 'Greatersword', 'Harmbalest', 'Bootboost', 'Hellishmet', 'Pantastic', 'Smoldershoulder', 'Bestplate', 'GambesOP'];
-        needPrestige = prestigeList.some(prestige => game.mapUnlocks[prestige].last <= (game.global.world + extraMapLevels) - 5);
-        //needPrestige = (offlineProgress.countMapItems(game.global.world) !== 0); TODO - Test this!
-    } else
-        needPrestige = prestige != "Off" && game.mapUnlocks[prestige] && game.mapUnlocks[prestige].last <= (game.global.world + extraMapLevels) - 5 && game.global.challengeActive != "Frugal";
-
-    //Prestige Skip 1
-    skippedPrestige = false;
-    if (needPrestige && getPsString("gems", true) > 0 && (getPageSetting('PrestigeSkip1_2') == 1 || getPageSetting('PrestigeSkip1_2') == 2)) {
-        var prestigeList = ['Dagadder', 'Megamace', 'Polierarm', 'Axeidic', 'Greatersword', 'Harmbalest', 'Bootboost', 'Hellishmet', 'Pantastic', 'Smoldershoulder', 'Bestplate', 'GambesOP'];
-        var numUnbought = 0;
-        for (var i in prestigeList) {
-            var p = prestigeList[i];
-            if (game.upgrades[p].allowed - game.upgrades[p].done > 0)
-                numUnbought++;
-        }
-        if (numUnbought >= customVars.SkipNumUnboughtPrestiges) {
-            needPrestige = false;
-            skippedPrestige = true;
-        }
-    }
-
-    //Prestige Skip 2
-    if ((needPrestige || skippedPrestige) && (getPageSetting('PrestigeSkip1_2') == 1 || getPageSetting('PrestigeSkip1_2') == 3)) {
-        const prestigeList = ['Dagadder', 'Megamace', 'Polierarm', 'Axeidic', 'Greatersword', 'Harmbalest'];
-        const numLeft = prestigeList.filter(prestige => game.mapUnlocks[prestige].last <= (game.global.world + extraMapLevels) - 5);
-        const shouldSkip = numLeft <= customVars.UnearnedPrestigesRequired;
-        if (shouldSkip != skippedPrestige) {
-            needPrestige = !needPrestige;
-            skippedPrestige = !skippedPrestige;
-        }
-    }
-
-    //H:D Calc
-    var ourBaseDamage = calcOurDmg("avg", "X");
-
-    //Shield Calc
-    highDamageShield();
-    if (getPageSetting('loomswap') > 0 && game.global.challengeActive != "Daily" && game.global.ShieldEquipped.name != getPageSetting('highdmg'))
-        ourBaseDamage *= trimpAA;
-    if (getPageSetting('dloomswap') > 0 && game.global.challengeActive == "Daily" && game.global.ShieldEquipped.name != getPageSetting('dhighdmg'))
-        ourBaseDamage *= trimpAA;
-
-    //Check for Health & Damage
-    enoughHealth = calcHealthRatio(false, true) > getMapHealthCutOff();
-    enoughDamage = calcHDRatio() < getMapCutOff();
-    updateAutoMapsStatus();
-
-    //Farming
-    var selectedMap = "world";
-    var shouldFarmLowerZone = false;
-
-    //Farm Flags
-    shouldFarm = false;
-    shouldFarmDamage = calcHDRatio() >= getFarmCutOff() && !weaponCapped();
-
-    //Only actually trigger farming after doing map bonuses
-    if (getPageSetting('DisableFarm') > 0 && (game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') || enoughDamage && game.global.mapBonus >= getPageSetting('MaxMapBonusHealth'))) {
-        //Farm on Low Health
-        shouldFarm = shouldFarmDamage || (getPageSetting('FarmOnLowHealth') && !enoughHealth && game.global.mapBonus >= getPageSetting('MaxMapBonushealth'));
-
-        //Toggle "Repeat Until"
-        if (game.options.menu.repeatUntil.enabled == 1 && shouldFarm) toggleSetting('repeatUntil');
-    }
-
-    isFarming = shouldFarm;
-    shouldDoMaps = false;
-    if (ourBaseDamage > 0) {
-        shouldDoMaps = (!enoughDamage || shouldFarm || scryerStuck);
-    }
-    var shouldDoHealthMaps = false;
-    if (game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') && !shouldFarm)
-        shouldDoMaps = false;
-    else if (game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') && shouldFarm)
-        shouldFarmLowerZone = getPageSetting('LowerFarmingZone');
-    else if (game.global.mapBonus < getPageSetting('MaxMapBonushealth') && !enoughHealth && !shouldDoMaps && !needPrestige) {
-        shouldDoMaps = true;
-        shouldDoHealthMaps = true;
-    }
-    var restartVoidMap = false;
-    if (game.global.challengeActive == 'Nom' && getPageSetting('FarmWhenNomStacks7')) {
-        if (game.global.gridArray[99].nomStacks > customVars.NomFarmStacksCutoff[0]) {
-            if (game.global.mapBonus != getPageSetting('MaxMapBonuslimit'))
-                shouldDoMaps = true;
-        }
-        if (game.global.gridArray[99].nomStacks == customVars.NomFarmStacksCutoff[1]) {
-            shouldFarm = (calcHDRatio() > customVars.NomfarmingCutoff);
-            shouldDoMaps = true;
-        }
-        if (!game.global.mapsActive && game.global.gridArray[game.global.lastClearedCell + 1].nomStacks >= customVars.NomFarmStacksCutoff[2]) {
-            shouldFarm = (calcHDRatio() > customVars.NomfarmingCutoff);
-            shouldDoMaps = true;
-        }
-        if (game.global.mapsActive && game.global.mapGridArray[game.global.lastClearedMapCell + 1].nomStacks >= customVars.NomFarmStacksCutoff[2]) {
-            shouldFarm = (calcHDRatio() > customVars.NomfarmingCutoff);
-            shouldDoMaps = true;
-            restartVoidMap = true;
-        }
-    }
-
-    //Prestige
-    if (shouldFarm && !needPrestige && weaponCapped()) {
-        shouldFarm = false;
-        if (game.global.mapBonus >= getPageSetting('MaxMapBonuslimit'))
-            shouldDoMaps = false;
-    }
-
-    //Spire
-    var shouldDoSpireMaps = false;
-    preSpireFarming = (isActiveSpireAT() || disActiveSpireAT()) && (spireTime = (new Date().getTime() - game.global.zoneStarted) / 1000 / 60) < getPageSetting('MinutestoFarmBeforeSpire');
-    spireMapBonusFarming = getPageSetting('MaxStacksForSpire') && (isActiveSpireAT() || disActiveSpireAT()) && game.global.mapBonus < 10;
-    if (preSpireFarming || spireMapBonusFarming) {
-        shouldDoMaps = true;
-        shouldDoSpireMaps = true;
-    }
-
-    //Map Bonus
-    var maxMapBonusZ = getPageSetting('MaxMapBonusAfterZone');
-    doMaxMapBonus = (maxMapBonusZ >= 0 && game.global.mapBonus < getPageSetting("MaxMapBonuslimit") && game.global.world >= maxMapBonusZ);
-    if (doMaxMapBonus) shouldDoMaps = true;
-
-    //Calculates Siphonology and Extra Map Levels
-    var minLvl = game.global.world - (shouldFarmLowerZone ?  11 : game.portal.Siphonology.level)
-    var maxLvl = game.global.world - (game.talents.mapLoot.purchased ?  1 : 0);
-    var siphLvl = Math.max(minLvl, 6);
-
-    //If enabled, then
-    if (getPageSetting('DynamicSiphonology') || shouldFarmLowerZone) {
-        //For each Map Level we can go below our current zone...
-        for (siphLvl; siphLvl < maxLvl; siphLvl++) {
-            //Calc our Damage on this map
-            var ratio = calcHDRatio(siphLvl, "map");
-            if (game.unlocks.imps.Titimp) ratio /= 2;
-
-            //Farms on Scryer if available, or Dominance, or just X
-            if (game.global.world >= 60 && getHighestLevelCleared() >= 180) ratio *= 2;
-            else if (game.upgrades.Dominance.done) ratio /= 4;
-
-            //Stop increasing map level once we get to the right ratio. We use 1.2 here because created maps are usually shorter and easier
-            if (ratio > 1.2) break;
-        }
-
-        //Keep increasing map level while we can overkill in that map
-        if (MODULES.maps.shouldFarmHigherZone && shouldFarmLowerZone && game.global.highestLevelCleared >= 209 && siphLvl == maxLvl) {
-            while (oneShotZone("S", "map", siphLvl+1) == maxOneShotPower()) siphLvl++;
-            if (game.talents.mapLoot.purchased && siphLvl == maxLvl+1) siphLvl--;
-        }
-    }
-
-    //Farms on "Oneshoot level" + 1, except on magma
-    var extraConditions = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming);
-    if (extraConditions && game.global.challengeActive != "Coordinate" && !mutations.Magma.active() && siphLvl < maxLvl) siphLvl++;
-
-    //Register the level of every regular map we have
-    var obj = {};
-    var siphonMap = -1, altSiphLevel = -1, altSiphMap = -1;
-    var tryBetterMod = false, gotBetterMod = false;
-    for (var index=0; index < game.global.mapsOwnedArray.length; index++) {
-        if (!game.global.mapsOwnedArray[index].noRecycle) {
-            var mapAux = game.global.mapsOwnedArray[index];
-            obj[index] = mapAux.level;
-            if (mapAux.level == siphLvl) siphonMap = index;
-
-            //Also grabs the highest level within our range that has a modifier on it
-            if (mapAux.level >= Math.max(Math.min(siphLvl-2, maxLvl), minLvl, altSiphLevel) && mapAux.level <= siphLvl+1) {
-                if (!mapAux.hasOwnProperty("bonus") || mapAux.bonus == "p") continue;
-                altSiphLevel = mapAux.level;
-                altSiphMap = index;
-            }
-        }
-    }
-
-    //Put those levels in ascending order
-    var keysSorted = Object.keys(obj).sort(function(a, b) {
-        return obj[b] - obj[a];
-    });
-
-    //Register the highest and lowest level maps
-    var highestMap;
-    var lowestMap;
-    if (keysSorted[0]) {
-        highestMap = keysSorted[0];
-        lowestMap = keysSorted[keysSorted.length - 1];
-    } else
-        selectedMap = "create";
-
-    //Uniques
-    var runUniques = (getPageSetting('AutoMaps') == 1);
-    if (runUniques) {
-        //Init
-        var runningC2 = game.global.runningChallengeSquared;
-        var challengeRequireMap, challenge = game.global.challengeActive;
-        var bionicMaxLevel = 0;
-        var bionicPool = [];
-
-        //For each owned map..
-        for (var map in game.global.mapsOwnedArray) {
-            var theMap = game.global.mapsOwnedArray[map];
-
-            //Check if it's unique
-            if (theMap.noRecycle) {
-                //The Block (Shieldblock, Challenges or Speed Achievement)
-                challengeRequireMap = !runningC2 && (challenge == "Scientist" || challenge == "Trimp");
-                var getShieldblock = !game.upgrades.Shieldblock.allowed && getPageSetting('BuyShieldblock');
-                if (theMap.name == 'The Block' &&  (challengeRequireMap || getShieldblock || shouldSpeedRun(game.achievements.blockTimed))) {
-                    if (game.global.world < 11 || getMapRatio(theMap) > 1) continue;
-                    selectedMap = theMap.id;
-                    break;
-                }
-
-                //The Wall (Bounty or Speed Achievement)
-                if (theMap.name == 'The Wall' && (game.upgrades.Bounty.allowed == 0 && !game.talents.bounty.purchased || shouldSpeedRun(game.achievements.wallTimed))) {
-                    if (game.global.world < 15 || getMapRatio(theMap) > 1) continue;
-                    selectedMap = theMap.id;
-                    break;
-                }
-
-                //Dimension of Anger (Portal, Challenges or Speed Achievement)
-                challengeRequireMap = !runningC2 && (challenge == "Discipline" || challenge == "Metal" || challenge == "Size" || challenge == "Frugal" || challenge == "Coordinate");
-                var needToPortal = !game.talents.portal.purchased && document.getElementById("portalBtn").style.display == "none";
-                if (theMap.name == 'Dimension of Anger' && (challengeRequireMap || needToPortal || shouldSpeedRun(game.achievements.angerTimed))) {
-                    if (game.global.world < 20 || getMapRatio(theMap) > 1) continue;
-                    selectedMap = theMap.id;
-                    break;
-                }
-
-                //Trimple of Doom (Treasure, Challenges or Speed Achievement)
-                challengeRequireMap = !runningC2 && (challenge == "Meditate" || challenge == "Trapper" || game.portal.Relentlessness.locked);
-                var treasure = game.mapUnlocks.AncientTreasure.canRunOnce && Math.abs(getPageSetting('TrimpleZ')) >= 33;
-                if (theMap.name == 'Trimple Of Doom' && (challengeRequireMap || treasure || shouldSpeedRun(game.achievements.doomTimed))) {
-                    if (!challengeRequireMap && game.global.world < Math.abs(getPageSetting('TrimpleZ')) || getMapRatio(theMap) > 1) continue;
-                    if (treasure < 0) setPageSetting('TrimpleZ', 0);
-                    selectedMap = theMap.id;
-                    break;
-                }
-
-                //The Prison (Challenges or Speed Achievement)
-                challengeRequireMap = !runningC2 && (challenge == "Electricity" || challenge == "Mapocalypse");
-                if (theMap.name == 'The Prison' && (challengeRequireMap || shouldSpeedRun(game.achievements.prisonTimed))) {
-                    if (game.global.world < 80 || getMapRatio(theMap) > 1) continue;
-                    selectedMap = theMap.id;
-                    break;
-                }
-
-                //Imploding Star (Challenges or Speed Achievement)
-                challengeRequireMap = !runningC2 && (challenge == "Devastation");
-                if (theMap.name == 'Imploding Star' && (challengeRequireMap || shouldSpeedRun(game.achievements.starTimed))) {
-                    if (game.global.world < 170 || getMapRatio(theMap) > 1) continue;
-                    selectedMap = theMap.id;
-                    break;
-                }
-
-                //Bionic Wonderland (Challenges or Speed Achievement)
-                challengeRequireMap = !runningC2 && (challenge == "Crushed");
-                if (theMap.name == 'Bionic Wonderland' && (challengeRequireMap || shouldSpeedRun(game.achievements.bionicTimed))) {
-                    if (game.global.world < 125 || getMapRatio(theMap) > 1) continue;
-                    selectedMap = theMap.id;
-                }
-
-                //Bionic Wonderland I+ (Unlocks)
-                if (theMap.location == "Bionic")
-                    bionicPool.push(theMap);
-            }
-        }
-
-        //Bionic Wonderland I+ (Unlocks, RoboTrimp or Bionic Sniper)
-        bionicPool.sort(function (bionicA, bionicB) {return bionicA.level - bionicB.level});
-        for (bionicMaxLevel=0; getMapRatio(undefined, 125 + 15 * bionicMaxLevel, 2.6) <= 1; bionicMaxLevel++);
-        var tryBionicSniper = !game.achievements.oneOffs.finished[42] && (110 + 15*bionicMaxLevel) >= game.global.world + 45;
-        if (bionicPool.length > 0 && (bionicMaxLevel > game.global.roboTrimpLevel || tryBionicSniper)) {
-            var bionicLevel = Math.min(bionicPool.length, bionicMaxLevel);
-            if (bionicLevel > 0) selectedMap = bionicPool[bionicLevel-1].id;
-            //debug("Selected Bionic Level " + bionicLevel + " resulting in map id " + selectedMap);
-        }
-    }
-
-    //Voids
-    if (needToVoid) {
-        var voidArray = [];
-        var prefixlist = {
-            'Deadly': 10,
-            'Heinous': 11,
-            'Poisonous': 20,
-            'Destructive': 30
-        };
-        var prefixkeys = Object.keys(prefixlist);
-        var suffixlist = {
-            'Descent': 7.077,
-            'Void': 8.822,
-            'Nightmare': 9.436,
-            'Pit': 10.6
-        };
-        var suffixkeys = Object.keys(suffixlist);
-
-        if (game.global.challengeActive != "Daily" && getPageSetting('onlystackedvoids') == true) {
-            for (var map in game.global.mapsOwnedArray) {
-                var theMap = game.global.mapsOwnedArray[map];
-                if (theMap.location == 'Void' && theMap.stacked > 0) {
-                    for (var pre in prefixkeys) {
-                        if (theMap.name.includes(prefixkeys[pre]))
-                            theMap.sortByDiff = 1 * prefixlist[prefixkeys[pre]];
-                    }
-                    for (var suf in suffixkeys) {
-                        if (theMap.name.includes(suffixkeys[suf]))
-                            theMap.sortByDiff += 1 * suffixlist[suffixkeys[suf]];
-                    }
-                    voidArray.push(theMap);
-                }
-            }
-        } else {
-            for (var map in game.global.mapsOwnedArray) {
-                var theMap = game.global.mapsOwnedArray[map];
-                if (theMap.location == 'Void') {
-                    for (var pre in prefixkeys) {
-                        if (theMap.name.includes(prefixkeys[pre]))
-                            theMap.sortByDiff = 1 * prefixlist[prefixkeys[pre]];
-                    }
-                    for (var suf in suffixkeys) {
-                        if (theMap.name.includes(suffixkeys[suf]))
-                            theMap.sortByDiff += 1 * suffixlist[suffixkeys[suf]];
-                    }
-                    voidArray.push(theMap);
-                }
-            }
-        }
-
-        var voidArraySorted = voidArray.sort(function(a, b) {
-            return a.sortByDiff - b.sortByDiff;
-        });
-        for (var map in voidArraySorted) {
-            var theMap = voidArraySorted[map];
-            doVoids = true;
-            var eAttack = getEnemyMaxAttack(game.global.world, theMap.size, 'Voidsnimp', theMap.difficulty);
-            if (game.global.world >= 181 || (game.global.challengeActive == "Corrupted" && game.global.world >= 60))
-                eAttack *= (getCorruptScale("attack") / 2).toFixed(1);
-            if (game.global.challengeActive == 'Balance') {
-                eAttack *= 2;
-            }
-            if (game.global.challengeActive == 'Toxicity') {
-                eAttack *= 5;
-            }
-            if (getPageSetting('DisableFarm') <= 0)
-                shouldFarm = shouldFarm || false;
-            if (!restartVoidMap)
-                selectedMap = theMap.id;
-            if (game.global.mapsActive && getCurrentMapObject().location == "Void" && game.global.challengeActive == "Nom" && getPageSetting('FarmWhenNomStacks7')) {
-                if (game.global.mapGridArray[theMap.size - 1].nomStacks >= customVars.NomFarmStacksCutoff[2]) {
-                    mapsClicked(true);
-                }
-            }
+function getVoidMapScore(map) {
+    let score = 0;
+    for (const [prefix, weight] of Object.entries(voidPrefixes)) {
+        if (map.name.includes(prefix)) {
+            score += weight;
             break;
         }
     }
-
-    //Skip Spires
-    if (!preSpireFarming && getPageSetting('SkipSpires') == 1 && ((game.global.challengeActive != 'Daily' && isActiveSpireAT()) || (game.global.challengeActive == 'Daily' && disActiveSpireAT()))) {
-        enoughDamage = true;
-        enoughHealth = true;
-        shouldFarm = false;
-        shouldDoMaps = false;
-    }
-
-    //Automaps
-    if (shouldDoMaps || doVoids || needPrestige) {
-        if (selectedMap == "world") {
-            if (preSpireFarming) {
-                var spiremaplvl = (game.talents.mapLoot.purchased && MODULES["maps"].SpireFarm199Maps) ? game.global.world - 1 : game.global.world;
-                selectedMap = "create";
-                for (i = 0; i < keysSorted.length; i++) {
-                    if (game.global.mapsOwnedArray[keysSorted[i]].level >= spiremaplvl &&
-                        game.global.mapsOwnedArray[keysSorted[i]].location == ((customVars.preferGardens && game.global.decayDone) ? 'Plentiful' : 'Mountain')) {
-                        selectedMap = game.global.mapsOwnedArray[keysSorted[i]].id;
-                        break;
-                    }
-                }
-            } else if (needPrestige) {
-                if ((game.global.world + extraMapLevels) <= game.global.mapsOwnedArray[highestMap].level)
-                    selectedMap = game.global.mapsOwnedArray[highestMap].id;
-                else
-                    selectedMap = "create";
-            } else if (siphonMap != -1) {
-                selectedMap = game.global.mapsOwnedArray[siphonMap].id;
-                if (game.global.highestLevelCleared >= 59 && MODULES.maps.forceModifier && !game.global.mapsOwnedArray[siphonMap].hasOwnProperty("bonus")) tryBetterMod = true;
-            }
-            else if (altSiphMap != -1) {
-                selectedMap = "create";
-                tryBetterMod = game.global.highestLevelCleared >= 59 && MODULES.maps.forceModifier;
-            }
-            else
-                selectedMap = "create";
+    for (const [suffix, weight] of Object.entries(voidSuffixes)) {
+        if (map.name.includes(suffix)) {
+            score += weight;
+            break;
         }
     }
-    if ((game.global.challengeActive == 'Lead' && !challSQ) && !doVoids && (game.global.world % 2 == 0 || game.global.lastClearedCell < customVars.shouldFarmCell)) {
+    return score;
+}
+
+function selectEasierVoidMap(map1, map2) {
+    if (getVoidMapScore(map1) > getMapScore(map2)) {
+        return map2;
+    } else {
+        return map1;
+    }
+}
+
+function shouldRunUniqueMap(map, isC2, challenge) {
+    const mapData = uniqueMaps[map.name];
+    if (mapData === undefined || game.global.world < mapData.zone || getMapRatio(map) > 1) {
+        return false;
+    }
+    if (!isC2 && mapData.challenges.includes(challenge)) {
+        return true;
+    }
+    if (mapData.speedrun && shouldSpeedRun(game.achievements[mapData.speedrun])) {
+        return true;
+    }
+
+    if (map.name === 'The Block') {
+        if (!game.upgrades.Shieldblock.allowed && getPageSetting('BuyShieldblock')) {
+            return true;
+        }
+    } else if (map.name === 'The Wall') {
+        if (!game.upgrades.Bounty.allowed && !game.talents.bounty.purchased) {
+            return true;
+        }
+    } else if (map.name === 'Dimension of Anger') {
+        if (!game.talents.portal.purchased && document.getElementById("portalBtn").style.display === "none") {
+            return true;
+        }
+    } else if (map.name === 'Trimple Of Doom') {
+        if (game.portal.Relentlessness.locked) {
+            return true;
+        }
+        const trimpleZ = Math.abs(getPageSetting('TrimpleZ'));
+        if (trimpleZ >= 33 && game.global.world >= trimpleZ && game.mapUnlocks.AncientTreasure.canRunOnce) {
+           if (getPageSetting('TrimpleZ') < 0) {
+                setPageSetting('TrimpleZ', 0);
+            }
+           return true;
+        }
+    } else {
+        return false;
+    }
+}
+
+function ascendingSorter(i1, i2) {
+    return i1 - i2;
+}
+
+function getTargetMapLevel(challenge, isFarming, shouldFarmLowerZone, lowestSiphLvl, highestSiphLevel, isPreVoidCell) {
+    let targetMapLevel = Math.max(lowestSiphLvl, 6);
+
+    if (!getPageSetting('DynamicSiphonology') && !shouldFarmLowerZone) {
+        return targetMapLevel
+    }
+    // For each Map Level we can go below our current zone...
+    while (targetMapLevel < highestSiphLevel) {
+        // Calc our Damage on this map
+        let potentialHDRatio = calcHDRatio(targetMapLevel, "map", isPreVoidCell);
+        if (game.unlocks.imps.Titimp) {
+            potentialHDRatio /= 2;
+        }
+
+        if (game.global.world >= 60 && getHighestLevelCleared() >= 180) {
+            // Use Scryer if available
+            potentialHDRatio *= 2;
+        } else if (game.upgrades.Dominance.done) {
+            // Use Dominance if available
+            potentialHDRatio /= 4;
+        }
+
+        // Stop increasing map level once we get to the right ratio. We use 1.2 here because created maps are usually shorter and easier
+        if (potentialHDRatio > 1.2) break;
+
+        targetMapLevel++;
+    }
+
+    // Keep increasing map level while we can overkill in that map
+    const maxOneShot = maxOneShotPower();
+    if (game.global.highestLevelCleared >= 209 && targetMapLevel >= highestSiphLevel) {
+        while (oneShotZone("S", "map", targetMapLevel + 1) !== maxOneShot) {
+            targetMapLevel++;
+        }
+    }
+    // Farm on "Oneshot level" + 1, except on magma
+    if (isFarming && targetMapLevel < highestSiphLevel && challenge !== "Coordinate" && !mutations.Magma.active()) {
+        targetMapLevel++;
+    }
+    return targetMapLevel;
+}
+
+function isVanillaMAZActive() {
+    if (!game.options.menu.mapAtZone.enabled || !game.global.canMapAtZone) {
+        return false;
+    }
+    const worldZ = game.global.world;
+    for (const option of game.options.menu.mapAtZone.setZone) {
+        if (worldZ < option.world || worldZ > option.through) {
+            continue;
+        }
+        if ((option.times === -1 && worldZ === option.world) || (worldZ - option.world) % option.times === 0 ) {
+            if (option.cell === game.global.lastClearedCell+2) {
+                return true;
+            }
+        }
+    }
+}
+
+function resetMapSettings(prestige, isInWorld, isInMapChamber) {
+    if (prestige !== "Off" && game.options.menu.mapLoot.enabled !== 1) {
+        toggleSetting('mapLoot');
+    }
+    if (game.options.menu.exitTo.enabled !== 0) {
+        toggleSetting('exitTo');
+    }
+    if (game.options.menu.repeatVoids.enabled !== 0) {
+        toggleSetting('repeatVoids');
+    }
+
+    // Reset to defaults when on world grid
+    if (isInWorld) {
+        if ([1, 2, 3].includes(game.options.menu.repeatUntil.enabled)) {
+            toggleSetting('repeatUntil');
+        }
+        if (game.global.repeatMap) {
+            repeatClicked();
+        }
+        if (game.global.selectedMapPreset >= 4) {
+            game.global.selectedMapPreset = 1;
+        }
+    }
+    if (isInMapChamber) {
+        document.getElementById('advExtraLevelSelect').value = "0";
+    }
+
+}
+
+function getVoidMapStatus() {
+    const status = {
+        isPreVoidCell: false, // we have void maps, and this is a Void zone
+        isVoidCell: false // isPreVoidCell + current cell allows us to actually run voids
+    }
+    // don't have any voids
+    if (game.global.totalVoidMaps === 0) {
+        return status;
+    }
+
+    const isC2 = game.global.runningChallengeSquared;
+    const isDaily = challenge === "Daily";
+    // running C2 and "no VMs in C2"
+    if (isC2 && getPageSetting('novmsc2')) {
+        return status;
+    }
+
+    let voidCellField, voidPoisonField, voidMinField, voidMaxField;
+    if (isDaily) {
+        // Daily Voids
+        voidCellField = 'dvoidscell';
+        voidPoisonField = 'drunnewvoidspoison';
+        voidMinField = 'DailyVoidMod';
+        voidMaxField = 'dRunNewVoidsUntilNew';
+    } else {
+        // Regular Voids
+        voidCellField = 'voidscell';
+        voidPoisonField = 'runnewvoidspoison';
+        voidMinField = 'VoidMaps';
+        voidMaxField = 'RunNewVoidsUntilNew';
+    }
+    // What Zone Range to run Voids at
+    const minVoidZone = max(0, getPageSetting(voidMinField, 0));
+    if (minVoidZone === 0) {
+        return status;
+    }
+    let maxVoidZone = 0;
+    if (!getPageSetting(voidPoisonField) || getEmpowerment() === 'Poison') {
+        maxVoidZone = minVoidZone + max(0, getPageSetting(voidMaxField, 0));
+    }
+    // Check zone range
+    if (game.global.world < minVoidZone || game.global.world > maxVoidZone) {
+        return status;
+    }
+    // What cell to run Voids at
+    const voidCell = getPageSetting(voidCellField, 90);
+
+    status.isPreVoidCell = (game.global.lastClearedCell + 1) >= Math.floor((voidCell - 1) / 10) * 10;
+    status.isVoidCell = status.isPreVoidCell && game.global.lastClearedCell + 1 >= voidCell;
+    return status;
+}
+
+function autoMap() {
+    resetMapSettings(prestige, isInWorld, isInMapChamber);
+    AutoMapState.update();
+
+    if (AutoMapState.target && game.options.menu.repeatUntil.enabled === 1) {
+        toggleSetting('repeatUntil');
+    }
+
+
+
+    // Calculate Siphonology and Extra Map Levels
+    const lowestSiphLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level)
+    const fullLootLevel = game.global.world - (game.talents.mapLoot.purchased ? 1 : 0);
+    const targetMapLevel = getTargetMapLevel(challenge, isFarming, shouldFarmLowerZone, lowestSiphLvl, fullLootLevel);
+    const useMods = game.global.highestLevelCleared >= 59;
+    const bestMapBiome = ((!getPageSetting("PreferMetal") && game.global.decayDone) ? 'Plentiful' : 'Mountain');
+
+    const bionicMaps = [];
+    const chosenMaps = {
+        unique: undefined,
+        bionic: undefined,
+        void: undefined,
+        crafted: undefined
+    };
+
+    const modPool = (!isFarming && needPrestige ? prestigeMapMods : farmingMapMods);
+    const allowUniques = getPageSetting('AutoMaps') === 1;
+    const onlyStackedVoids = !isDaily && getPageSetting('onlystackedvoids');
+    for (const map of game.global.mapsOwnedArray) {
+        if (map.noRecycle) {
+            // non-crafted maps
+            if (map.location === 'Void' && doVoids && (!onlyStackedVoids || map.stacked > 0)) {
+                // void maps
+                chosenMaps.void = selectEasierVoidMap(chosenMaps.void, map);
+            } else if (allowUniques) {
+                if (shouldRunUniqueMap(map, isC2, challenge)) {
+                    // unique maps
+                    chosenMaps.unique = map;
+                }
+                if (map.location === "Bionic") {
+                    // Bionic Wonderland maps
+                    bionicMaps.push(map);
+                }
+            }
+        } else {
+            // crafted maps
+            chosenMaps.crafted = selectBetterCraftedMap(chosenMaps.crafted, map, modPool, lowestSiphLvl, targetMapLevel);
+        }
+    }
+
+    // Bionic Wonderland I+ (Unlocks, RoboTrimp, or Bionic Sniper)
+    if (bionicMaps.length > 0) {
+        bionicMaps.sort(ascendingSorter);
+        let bionicMaxRank = 0;
+        while (getMapRatio(undefined, 125 + 15 * bionicMaxRank, 2.6) <= 1) {
+            bionicMaxRank++;
+        }
+        const tryBionicSniper = !game.achievements.oneOffs.finished[42] && (110 + 15 * bionicMaxRank) >= game.global.world + 45;
+        if (bionicMaxRank > game.global.roboTrimpLevel || tryBionicSniper) {
+            const bionicRank = Math.min(bionicMaps.length, bionicMaxRank);
+            if (bionicRank > 0) {
+                chosenMaps.bionic = bionicMaps[bionicRank-1];
+            }
+        }
+    }
+
+    if (chosenMaps.void || chosenMaps.bionic || chosenMaps.unique) {
+        // TODO return
+    }
+
+    let tryBetterMod = false;
+    let gotBetterMod = false;
+    // Automaps
+    if ((shouldDoMaps || doVoids || needPrestige) && !haveNonCraftedMapToRun(chosenMaps)) {
+        if (preSpireFarming) {
+            selectedMap = "create";
+            for (const mapKey of keysSorted) {
+                let iMap = game.global.mapsOwnedArray[keysSorted[i]];
+                if (iMap && iMap.level >= fullLootLevel && iMap.location === bestMapBiome) {
+                    selectedMap = iMap.id;
+                    break;
+                }
+            }
+        } else if (needPrestige) {
+            if ((game.global.world + extraMapLevels) <= game.global.mapsOwnedArray[highestMap].level) {
+                selectedMap = game.global.mapsOwnedArray[highestMap].id;
+            } else {
+                selectedMap = "create";
+            }
+        } else if (bestMap !== -1) {
+            selectedMap = game.global.mapsOwnedArray[bestMap].id;
+            if (useMods && !game.global.mapsOwnedArray[bestMap].hasOwnProperty("bonus")) {
+                tryBetterMod = true;
+            }
+        }
+        else if (bestOfTheRestMap !== -1) {
+            selectedMap = "create";
+            tryBetterMod = useMods;
+        } else {
+            selectedMap = "create";
+        }
+    }
+    if ((game.global.challengeActive == 'Lead' && !challSQ) && !doVoids && (game.global.world % 2 == 0 || game.global.lastClearedCell < shouldFarmCell)) {
         if (game.global.preMapsActive)
             mapsClicked();
         return;
     }
     if (!game.global.preMapsActive && game.global.mapsActive) {
-        var doDefaultMapBonus = game.global.mapBonus < getPageSetting('MaxMapBonuslimit') - 1;
-        if (selectedMap == game.global.currentMapId && !getCurrentMapObject().noRecycle && (doDefaultMapBonus || vanillaMapatZone || doMaxMapBonus || shouldFarm || needPrestige || shouldDoSpireMaps || mapExiting)) {
+        var doDefaultMapBonus = game.global.mapBonus < maxMapBonusLimit - 1;
+        if (selectedMap == game.global.currentMapId && !getCurrentMapObject().noRecycle && (doDefaultMapBonus || isVanillaMAZActive() || doMaxMapBonus || shouldFarm || needPrestige || shouldDoSpireMaps || mapExiting)) {
             //Start with Repeat on
             if (!game.global.repeatMap) {
                 repeatClicked();
@@ -797,52 +1032,51 @@ function autoMap() {
 
             //End Prestige
             if (!shouldDoMaps && endPrestige && (game.global.world + extraMapLevels) <= lastPrestige + (getScientistLevel() >= 4 && lastPrestige%10 < 6 ? 14 : 9)) {
-                console.log("debug1");
+                // console.log("debug: End Prestige");
                 repeatClicked();
             }
 
             //Health Farming
-            if (shouldDoHealthMaps && game.global.mapBonus >= getPageSetting('MaxMapBonushealth') - 1) {
-                console.log("debug2");
+            if (shouldDoHealthMaps && game.global.mapBonus >= maxMapBonusHealth - 1) {
+                // console.log("debug: Health Farming");
                 repeatClicked();
-                shouldDoHealthMaps = false;
             }
 
             //Damage Farming
-            if (doMaxMapBonus && game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') - 1) {
-                console.log("debug3");
+            if (doMaxMapBonus && game.global.mapBonus >= maxMapBonusLimit - 1) {
+                // console.log("debug: Damage Farming");
                 repeatClicked();
                 doMaxMapBonus = false;
             }
 
             //Want to recreate the map
             if (tryBetterMod && game.resources.fragments.owned >= fragmentsNeeded) {
-                console.log("debug4");
+                // console.log("debug: Want to recreate the map");
                 repeatClicked();
             }
 
             //Want to exit the current map to pRaid
             if (mapExiting) {
-                console.log("debug5");
+                // console.log("debug: Want to exit the current map to pRaid");
                 repeatClicked();
             }
         } else {
-            console.log("debugx");
-            //Start with Repeat Off
+            // console.log("debug: NOT repeating current map");
+            var shouldRepeat = tryBetterMod && game.resources.fragments.owned < fragmentsNeeded;
+            // maybe disable repeat
             if (game.global.repeatMap) {
-                console.log("debugx1");
+                // console.log("debug: Repeat Off");
                 repeatClicked();
             }
 
-            //Turn if back on if it want to recreate a map, but doesn't have the fragments to do it
+            //Turn it back on if we want to recreate a map, but don't have enough fragments
             if (tryBetterMod && game.resources.fragments.owned < fragmentsNeeded) {
-                console.log("debugx2");
+                // console.log("want to recreate a map, but don't have enough fragments");
                 repeatClicked();
             }
-
             //Force Abandon to restart void maps
             if (restartVoidMap) {
-                console.log("debugx3");
+                // console.log("debug: Force Abandon to restart void maps");
                 mapsClicked(true);
             }
         }
@@ -851,50 +1085,43 @@ function autoMap() {
             if (!game.global.switchToMaps) {
                 mapsClicked();
             }
-            if ((!getPageSetting('PowerSaving') || (getPageSetting('PowerSaving') == 2) && (doVoids || preVoidCheck)) && game.global.switchToMaps &&
-                (needPrestige || (doVoids || preVoidCheck) ||
+            if ((!getPageSetting('PowerSaving') || (getPageSetting('PowerSaving') == 2) && (doVoids || AutoMapState.prepareForVoids)) && game.global.switchToMaps &&
+                (needPrestige || (doVoids || AutoMapState.prepareForVoids) ||
                     ((game.global.challengeActive == 'Lead' && !challSQ) && game.global.world % 2 == 1) ||
                     (!enoughDamage && enoughHealth && game.global.lastClearedCell < 9) ||
-                    (shouldFarm && game.global.lastClearedCell >= customVars.shouldFarmCell) ||
-                    (scryerStuck)) &&
+                    (shouldFarm && game.global.lastClearedCell >= shouldFarmCell)) &&
                 (
                     (game.resources.trimps.realMax() <= game.resources.trimps.owned + 1) ||
                     ((game.global.challengeActive == 'Lead' && !challSQ) && game.global.lastClearedCell > 93) ||
-                    ((doVoids || preVoidCheck) && game.global.lastClearedCell > voidCell - 10)
+                    ((doVoids || AutoMapState.prepareForVoids) && game.global.lastClearedCell > voidCell - 10)
                 )
             ) {
-                if (scryerStuck) {
-                    debug("Got perma-stuck on cell " + (game.global.lastClearedCell + 2) + " during scryer stance. Are your scryer settings correct? Entering map to farm to fix it.");
-                }
                 mapsClicked();
             }
         }
-    }
-    else if (game.global.preMapsActive) {
-        if (selectedMap == "world") {
+    } else if (game.global.preMapsActive) {
+        if (selectedMap === "world") {
             mapsClicked();
-        }
-        else if (selectedMap == "create" || tryBetterMod) {
+        } else if (selectedMap === "create" || tryBetterMod) {
             var $mapLevelInput = document.getElementById("mapLevelInput");
-            $mapLevelInput.value = (needPrestige || siphLvl > game.global.world) ? game.global.world : siphLvl;
-            if (preSpireFarming && MODULES["maps"].SpireFarm199Maps)
+            $mapLevelInput.value = (needPrestige || targetMapLevel > game.global.world) ? game.global.world : targetMapLevel;
+            if (preSpireFarming)
                 $mapLevelInput.value = game.talents.mapLoot.purchased ? game.global.world - 1 : game.global.world;
-            var decrement;
-            var tier;
-            if (game.global.world >= customVars.MapTierZone[0]) {
-                tier = customVars.MapTier0Sliders;
+            var decrement, tier;
+            if (game.global.world >= mapTierZone[0]) {
+                tier = mapTier0Sliders;
                 decrement = [];
             }
-            else if (game.global.world >= customVars.MapTierZone[1]) {
-                tier = customVars.MapTier1Sliders;
+            else if (game.global.world >= mapTierZone[1]) {
+                tier = mapTier1Sliders;
                 decrement = ['loot'];
             }
-            else if (game.global.world >= customVars.MapTierZone[2]) {
-                tier = customVars.MapTier2Sliders;
+            else if (game.global.world >= mapTierZone[2]) {
+                tier = mapTier2Sliders;
                 decrement = ['loot'];
             }
             else {
-                tier = customVars.MapTier3Sliders;
+                tier = mapTier2Sliders;
                 decrement = ['diff', 'loot'];
             }
 
@@ -933,23 +1160,25 @@ function autoMap() {
                 sizeAdvMapsRange.value -= 1;
             }
             if (getPageSetting('AdvMapSpecialModifier')) {
-                if (siphLvl > maxLvl) {
+                if (targetMapLevel > fullLootLevel) {
                     //TODO -- Buggy when we don't have fragments to create any map with modifiers
                     //Finds the highest map level we can buy modifiers for, plus one
-                    while (game.global.world + getExtraMapLevels() <= siphLvl && testMapSpecialModController(true))
+                    while (game.global.world + getExtraMapLevels() <= targetMapLevel && checkMapMods(true))
                         document.getElementById('advExtraLevelSelect').value++;
 
                     //Since we can't create a map for zone X + 1, target zone X
                     if (getExtraMapLevels() > 0) document.getElementById('advExtraLevelSelect').value--;
 
-                    //Reduce our map zone to world - 1 if we can't create a map for world + 1
+                    //Reduce our map zone to world - 1 if we can't create a map for world + 0
                     if (game.talents.mapLoot.purchased && getExtraMapLevels() == 0) $mapLevelInput.value--;
 
                     //Update our control flags
                     extraMapLevels = getExtraMapLevels();
-                    gotBetterMod = (parseInt($mapLevelInput.value) + getExtraMapLevels() > altSiphLevel) && testMapSpecialModController(true);
+                    gotBetterMod = parseInt($mapLevelInput.value) + getExtraMapLevels() > altSiphLevel && checkMapMods(true);
                 }
-                else gotBetterMod = testMapSpecialModController(tryBetterMod);
+                else {
+                    gotBetterMod = checkMapMods(tryBetterMod);
+                }
             }
             var mapLvlPicked = parseInt($mapLevelInput.value) + (getPageSetting('AdvMapSpecialModifier') ? getExtraMapLevels() : 0);
 
@@ -957,13 +1186,13 @@ function autoMap() {
             if (tryBetterMod) {
                 if (gotBetterMod && game.resources.fragments.owned >= updateMapCost(true)) {
                     fragmentsNeeded = 0;
-                    if (siphonMap != -1) {
+                    if (bestMap != -1) {
                         debug("Recreating map level #" + mapLvlPicked + " to include a modifier", "maps", '*happy2');
-                        recycleMap(siphonMap);
+                        recycleMap(bestMap);
                     }
                 }
-                else if (altSiphMap != -1) {
-                    selectedMap = game.global.mapsOwnedArray[altSiphMap].id;
+                else if (bestOfTheRestMap != -1) {
+                    selectedMap = game.global.mapsOwnedArray[bestOfTheRestMap].id;
                     selectMap(selectedMap);
                     var mapObject = game.global.mapsOwnedArray[getMapIndex(selectedMap)];
                     var lvlText = " Level: " + mapObject.level;
@@ -972,7 +1201,7 @@ function autoMap() {
                     lastMapWeWereIn = getCurrentMapObject();
                     return;
                 }
-                else if (siphonMap != -1) {
+                else if (bestMap != -1) {
                     selectMap(selectedMap);
                     var themapobj = game.global.mapsOwnedArray[getMapIndex(selectedMap)];
                     var levelText = " Level: " + themapobj.level;
@@ -1966,7 +2195,6 @@ function RautoMap() {
             }
             if (shouldDoHealthMaps && game.global.mapBonus >= getPageSetting('RMaxMapBonushealth')) {
                 repeatClicked();
-                shouldDoHealthMaps = false;
             }
             if (RdoMaxMapBonus && game.global.mapBonus < getPageSetting('RMaxMapBonuslimit')) {
                 repeatClicked();

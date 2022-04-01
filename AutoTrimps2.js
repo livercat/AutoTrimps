@@ -76,22 +76,6 @@ function delayStartAgain(){
     setInterval(guiLoop, runInterval*10);
 }
 
-/*function delayStartAgain(){
-    game.global.addonUser = true;
-    game.global.autotrimps = true;
-    MODULESdefault = JSON.parse(JSON.stringify(MODULES));
-    //Grabz
-    var old_gameLoop = gameLoop;
-    gameLoop = function(makeUp) {
-
-        old_gameLoop(...arguments);
-        mainLoop();
-        if (!makeUp && loops % 10 == 0){
-            guiLoop();
-        }
-    }
-}*/
-
 var ATrunning = true;
 var ATmessageLogTabVisible = true;
 var enableDebug = true;
@@ -99,7 +83,6 @@ var enableDebug = true;
 var autoTrimpSettings = {};
 var MODULES = {};
 var MODULESdefault = {};
-var ATMODULES = {};
 var ATmoduleList = [];
 
 var bestBuilding;
@@ -170,6 +153,9 @@ function mainLoop() {
         }
 
         //Core
+        const voidMapStatus = getVoidMapStatus();
+        const HDStatus = getHDStatus();
+        if (getPageSetting('AutoMaps') > 0) autoMap();
         if (getPageSetting('AutoMaps') > 0) autoMap();
         if (getPageSetting('showautomapstatus') == true) updateAutoMapsStatus();
         if (getPageSetting('ManualGather2') == 1) manualLabor2();
@@ -211,7 +197,7 @@ function mainLoop() {
         if (getPageSetting('trimpsnotdie') == true && game.global.world > 1) helptrimpsnotdie();
         if (!game.global.fighting) {
             if (getPageSetting('fightforever') == 0) fightalways();
-            else if (getPageSetting('fightforever') > 0 && calcHDRatio() <= getPageSetting('fightforever')) fightalways();
+            else if (getPageSetting('fightforever') > 0 && HDStatus.hdRatio <= getPageSetting('fightforever')) fightalways();
             else if (getPageSetting('cfightforever') == true && (game.global.challengeActive == 'Electricty' || game.global.challengeActive == 'Toxicity' || game.global.challengeActive == 'Nom')) fightalways();
             else if (getPageSetting('dfightforever') == 1 && game.global.challengeActive == "Daily" && typeof game.global.dailyChallenge.empower == 'undefined' && typeof game.global.dailyChallenge.bloodthirst == 'undefined' && (typeof game.global.dailyChallenge.bogged !== 'undefined' || typeof game.global.dailyChallenge.plague !== 'undefined' || typeof game.global.dailyChallenge.pressure !== 'undefined')) fightalways();
             else if (getPageSetting('dfightforever') == 2 && game.global.challengeActive == "Daily" && (typeof game.global.dailyChallenge.bogged !== 'undefined' || typeof game.global.dailyChallenge.plague !== 'undefined' || typeof game.global.dailyChallenge.pressure !== 'undefined')) fightalways();

@@ -29,6 +29,20 @@ function debugCalc() {
     debug("Specific Enemy Health: " + calcSpecificEnemyHealth().toExponential(2));
 }
 
+function getHDStatus() {
+    const status = {
+        hdRatio: calcHDRatio(),
+        minHitsSurvived: getMapHealthCutOff(),
+        hitsSurvived: calcHealthRatio(false, true),
+        mapCutoff: getMapCutOff(),
+        isArmorCapped: armorCapped(),
+        isWeaponCapped: weaponCapped()
+    };
+    status.needHealth = status.hitsSurvived <= status.minHitsSurvived && !status.isArmorCapped;
+    status.needDamage = status.hdRatio >= status.mapCutoff && !status.isWeaponCapped;
+    return status;
+}
+
 function calcOurBlock(stance, realBlock) {
     var block = 0;
 
@@ -187,7 +201,7 @@ function calcOurHealth(stance, fullGeneticist, realHealth) {
 
 function calcHealthRatio(stance, fullGeneticist, type, targetZone, mapDifficulty = 1) {
     //Pre Init
-    if (!type) type = preVoidCheck ? "void" : "world";
+    if (!type) type = AutoMapState.prepareForVoids ? "void" : "world";
     if (!targetZone) targetZone = game.global.world;
 
     //Init
@@ -692,7 +706,7 @@ function calcEnemyAttackCore(type, zone, cell, name, minOrMax, customAttack) {
 
 function calcEnemyAttack(type, zone, cell = 99, name = "Snimp", minOrMax) {
     //Pre-Init
-    if (!type) type = preVoidCheck ? "void" : "world";
+    if (!type) type = AutoMapState.prepareForVoids ? "void" : "world";
     if (!zone) zone = game.global.world;
 
     //Init
@@ -874,7 +888,7 @@ function calcEnemyHealthCore(type, zone, cell, name, customHealth) {
 
 function calcEnemyHealth(type, zone, cell = 99, name = "Turtlimp") {
     //Pre-Init
-    if (!type) type = preVoidCheck ? "void" : "world";
+    if (!type) type = AutoMapState.prepareForVoids ? "void" : "world";
     if (!zone) zone = game.global.world;
 
     //Init
@@ -955,10 +969,10 @@ function calcSpecificEnemyHealth(type, zone, cell, forcedName) {
     return health;
 }
 
-function calcHDRatio(targetZone, type) {
+function calcHDRatio(targetZone, type, isPreVoidCell) {
     //Pre-Init
     if (!targetZone) targetZone = game.global.world;
-    if (!type) type = preVoidCheck ? "void" : "world";
+    if (!type) type = isPreVoidCell ? "void" : "world";
 
     //Init
     var ignoreMapBonus = type != "world" || (game.global.challengeActive == "Lead" && targetZone%2 == 1);
@@ -1013,10 +1027,10 @@ function calcHDRatio(targetZone, type) {
     return calcEnemyHealth(type, targetZone) / (ourBaseDamage + addPoison());
 }
 
-function calcCurrentStance() {
+function calcCurrentStance(HDStatus) {
     if (game.global.uberNature == "Wind" && getEmpowerment() == "Wind" && !game.global.mapsActive &&
-        (((game.global.challengeActive != "Daily" && calcHDRatio() < getPageSetting('WindStackingMinHD'))
-            || (game.global.challengeActive == "Daily" && calcHDRatio() < getPageSetting('dWindStackingMinHD')))
+        (((game.global.challengeActive != "Daily" && HDStatus.hdRatio < getPageSetting('WindStackingMinHD'))
+            || (game.global.challengeActive == "Daily" && HDStatus.hdRatio < getPageSetting('dWindStackingMinHD')))
                 && ((game.global.challengeActive != "Daily" && game.global.world >= getPageSetting('WindStackingMin'))
                     || (game.global.challengeActive == "Daily" && game.global.world >= getPageSetting('dWindStackingMin'))))
                         || (game.global.uberNature == "Wind" && getEmpowerment() == "Wind" && !game.global.mapsActive && checkIfLiquidZone() && getPageSetting('liqstack') == true))
@@ -1058,8 +1072,8 @@ function calcCurrentStance() {
                     || (game.global.challengeActive == "Daily" && game.global.world < getPageSetting('dWindStackingMin')))
                         useHigh = true;
 
-            if ((getPageSetting('wsmax') > 0 && game.global.world >= getPageSetting('wsmax') && !game.global.mapsActive && getEmpowerment() == "Wind" && game.global.challengeActive != "Daily" && getPageSetting('wsmaxhd') > 0 && calcHDRatio() < getPageSetting('wsmaxhd'))
-                || (getPageSetting('dwsmax') > 0 && game.global.world >= getPageSetting('dwsmax') && !game.global.mapsActive && getEmpowerment() == "Wind" && game.global.challengeActive == "Daily" && getPageSetting('dwsmaxhd') > 0 && calcHDRatio() < getPageSetting('dwsmaxhd')))
+            if ((getPageSetting('wsmax') > 0 && game.global.world >= getPageSetting('wsmax') && !game.global.mapsActive && getEmpowerment() == "Wind" && game.global.challengeActive != "Daily" && getPageSetting('wsmaxhd') > 0 && HDStatus.hdRatio < getPageSetting('wsmaxhd'))
+                || (getPageSetting('dwsmax') > 0 && game.global.world >= getPageSetting('dwsmax') && !game.global.mapsActive && getEmpowerment() == "Wind" && game.global.challengeActive == "Daily" && getPageSetting('dwsmaxhd') > 0 && HDStatus.hdRatio < getPageSetting('dwsmaxhd')))
                     useHigh = false;
 
             //Low
@@ -1131,7 +1145,7 @@ function RcalcOurDmg(minMaxAvg, equality) {
 
     // Hunger
     number *= game.portal.Hunger.getMult();
-	
+
     // Ob
     number *= game.portal.Observation.getMult();
 
@@ -1146,7 +1160,7 @@ function RcalcOurDmg(minMaxAvg, equality) {
 
     // Frenzy perk
     //number *= (game.portal.Frenzy.frenzyTime) ? game.portal.Frenzy.getAttackMult() : 1;
-	
+
     // Golden Upgrade
     number *= 1 + game.goldenUpgrades.Battle.currentBonus;
 
@@ -1246,9 +1260,9 @@ function RcalcOurDmg(minMaxAvg, equality) {
 }
 
 function RcalcOurHealth() {
-	
+
     //Health
-	
+
     var health = 50;
     if (game.resources.trimps.maxSoldiers > 0) {
         var equipmentList = ["Shield", "Boots", "Helmet", "Pants", "Shoulderguards", "Breastplate", "Gambeson"];
@@ -1308,11 +1322,11 @@ function RcalcOurHealth() {
     if (typeof game.global.dailyChallenge.pressure !== 'undefined') {
         health *= (dailyModifiers.pressure.getMult(game.global.dailyChallenge.pressure.strength, game.global.dailyChallenge.pressure.stacks));
     }
-	
+
     //Pris
-	
+
     health *= (getEnergyShieldMult() + 1);
-	
+
     return health;
 }
 
@@ -1427,7 +1441,7 @@ function RcalcEnemyHealth(world) {
 	health *= 10;
     }
     if (game.global.challengeActive == "Archaeology") {
-	
+
     }
     if (game.global.challengeActive == "Mayhem") {
 	health *= game.challenges.Mayhem.getEnemyMult();
