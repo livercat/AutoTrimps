@@ -171,6 +171,10 @@ function testMapSpecialModController(noLog) {
         }
     }
 
+    if (mapCost > game.resources.fragments.owned) {
+        return false;
+    }
+
     let messageParts = [];
     if (modSelector.value !== "0") {
         messageParts.push(mapSpecialModifierConfig[modSelector.value].name);
@@ -183,7 +187,7 @@ function testMapSpecialModController(noLog) {
         debug("Set the map special modifier to: " + messageParts.join(', ') + ". Cost: " + ratio + "% of your fragments.");
     }
 
-    return mapCost > game.resources.fragments.owned;
+    return true;
 }
 
 function getMapHealthCutOff(pure) {
