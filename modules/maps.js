@@ -13,6 +13,7 @@ MODULES.maps.SpireFarm199Maps = true;
 MODULES.maps.shouldFarmCell = 80;
 MODULES.maps.SkipNumUnboughtPrestiges = 2;
 MODULES.maps.UnearnedPrestigesRequired = 2;
+MODULES.maps.advSpecialMapMod_numZones = 3;
 
 //Psycho
 MODULES.maps.shouldFarmHigherZone = true; //Allows farming on a map level above your current zone if you can overkill in it
@@ -31,7 +32,6 @@ var scryerStuck = false;
 var shouldDoMaps = false;
 var shouldFarm = false;
 var shouldFarmDamage = false;
-var mapTimeEstimate = 0;
 var lastMapWeWereIn = null;
 var preSpireFarming = false;
 var spireMapBonusFarming = false;
@@ -39,7 +39,10 @@ var spireTime = 0;
 var doMaxMapBonus = false;
 var vanillaMapatZone = false;
 var fragmentsNeeded = 0;
-var additionalCritMulti = 2 < getPlayerCritChance() ? 25 : 5;
+
+// mods are from best to worst
+const farmingMapMods = ["lmc", "hc", "smc", "lc", "fa"];
+const prestigeMapMods = ["p", "fa"];
 
 function updateAutoMapsStatus(get) {
     var status;
@@ -102,57 +105,89 @@ function updateAutoMapsStatus(get) {
     }
 }
 
-MODULES["maps"].advSpecialMapMod_numZones = 3;
-var advExtraMapLevels = 0;
+function _updateMapCost() {
+    const mapCost = updateMapCost(true);
+    fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
+    return fragmentsNeeded;
+}
+
 function testMapSpecialModController(noLog) {
-    var success = true;
-    var a = [];
-    if (Object.keys(mapSpecialModifierConfig).forEach(function(o) {
-        var p = mapSpecialModifierConfig[o];
-        game.global.highestLevelCleared + 1 >= p.unlocksAt && a.push(p.abv.toLowerCase());
-    }), !(1 > a.length)) {
-        var c = document.getElementById("advSpecialSelect");
-        if (c) {
-            if (game.global.highestLevelCleared >= 59) {
-                //Select Map Modifier
-                if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage)) {
-                    c.value = a.includes("lmc") ? "lmc" : a.includes("hc") ? "hc" : a.includes("smc") ? "smc" : "lc";
-                } else if (needPrestige && enoughDamage && a.includes("p")) {
-                    c.value = "p";
-                } else c.value = "fa";
+    let mapCost = _updateMapCost();
+    if (mapCost > game.resources.fragments.owned) {
+        // not enough fragments even for a base map
+        return false;
+    }
+    if (game.global.highestLevelCleared < 59) {
+        // map mods aren't unlocked yet
+        return true;
+    }
+    const availableMods = [];
+    for (const mod of Object.values(mapSpecialModifierConfig)) {
+        if (game.global.highestLevelCleared > mod.unlocksAt) {
+            availableMods.push(mod.abv.toLowerCase());
+        }
+    }
+    if (availableMods.length <= 0) {
+        // no map mods are unlocked
+        return true;
+    }
+    const modSelector = document.getElementById("advSpecialSelect");
+    if (!modSelector) {
+        // cannot access mod selector element
+        return true;
+    }
+    let modPool = [];
+    if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage)) {
+        modPool = farmingMapMods;
+    } else if (needPrestige && enoughDamage) {
+        modPool = prestigeMapMods;
+    }
 
-                //Check if we can afford it
-                for (var d = updateMapCost(!0), e = game.resources.fragments.owned, f = 100 * (d / e); 0 < c.selectedIndex && d > e;) {
-                    c.selectedIndex -= 1;
-                    "0" != c.value && !noLog && console.log("Could not afford " + mapSpecialModifierConfig[c.value].name);
-                    fragmentsNeeded = Math.max(fragmentsNeeded, d);
-                    success = false;
-                }
+    for (const mod of modPool.filter(mod => availableMods.includes(mod))) {
+        modSelector.value = mod;
+        mapCost = _updateMapCost();
+        if (mapCost <= game.resources.fragments.owned) {
+            // we have a winner!
+            break;
+        } else if (!noLog) {
+            console.log("Could not afford mod " + mapSpecialModifierConfig[mod].name);
+        }
+    }
+    if (mapCost > game.resources.fragments.owned) {
+        // couldn't afford anything, reset mods
+        modSelector.value = "0";
+        _updateMapCost();
+        return false;
+    }
 
-                var d = updateMapCost(!0), e = game.resources.fragments.owned;
-                "0" != c.value && !noLog && debug("Set the map special modifier to: " + mapSpecialModifierConfig[c.value].name + ". Cost: " + (100 * (d / e)).toFixed(2) + "% of your fragments.");
-            }
-
-            //Check what Modifiers should be available to us
-            var g = getSpecialModifierSetting(),
-                h = 109 <= game.global.highestLevelCleared,
-                i = checkPerfectChecked(),
-                j = document.getElementById("advPerfectCheckbox"),
-                k = getPageSetting("AdvMapSpecialModifier") ? getExtraMapLevels() : 0,
-                l = 209 <= game.global.highestLevelCleared;
-
-            //Extra Map levels
-            if (l) {
-                var m = document.getElementById("advExtraMapLevelselect");
-                if (!m) return success;
-                var n = document.getElementById("mapLevelInput").value;
-                for (m.selectedIndex = n == game.global.world ? MODULES.maps.advSpecialMapMod_numZones : 0; 0 < m.selectedIndex && updateMapCost(!0) > game.resources.fragments.owned;)
-                    m.selectedIndex -= 1;
-            }
+    // Extra Map levels
+    const extraLevelsSelect = document.getElementById("advExtraMapLevelselect");
+    if (game.global.highestLevelCleared >= 209 && extraLevelsSelect) {
+        extraLevelsSelect.selectedIndex = 3;
+        mapCost = _updateMapCost();
+        while (extraLevelsSelect.selectedIndex > 0 && mapCost > game.resources.fragments.owned) {
+            extraLevelsSelect.selectedIndex -= 1;
+            mapCost = _updateMapCost();
         }
     }
 
-    return success;
+    if (mapCost > game.resources.fragments.owned) {
+        return false;
+    }
+
+    let messageParts = [];
+    if (modSelector.value !== "0") {
+        messageParts.push(mapSpecialModifierConfig[modSelector.value].name);
+    }
+    if (extraLevelsSelect && extraLevelsSelect.selectedIndex > 0) {
+        messageParts.push('z+' + extraLevelsSelect.selectedIndex);
+    }
+    if (messageParts.length > 0) {
+        const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
+        debug("Set the map special modifier to: " + messageParts.join(', ') + ". Cost: " + ratio + "% of your fragments.");
+    }
+
+    return true;
 }
 
 function getMapHealthCutOff(pure) {
