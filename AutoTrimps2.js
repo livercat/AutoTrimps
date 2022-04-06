@@ -1,6 +1,6 @@
 var ATversion = 'ZekRay v6.0';
 var atscript = document.getElementById('AutoTrimps-script');
-var basepath = 'https://livercat.github.io/AutoTrimps/', modulepath='modules/';
+var basepath = 'https://Psycho-Ray.github.io/AutoTrimps/', modulepath='modules/';
 atscript !== null && (basepath = atscript.src.replace(/AutoTrimps2\.js$/,''));
 
 function ATscriptLoad(a,b) {
