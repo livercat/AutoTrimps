@@ -137,7 +137,7 @@ function testMapSpecialModController(noLog) {
         return true;
     }
     let modPool = [];
-    if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (AutoMapState.prepareForVoids && !enoughDamage)) {
+    if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage)) {
         modPool = farmingMapMods;
     } else if (needPrestige && enoughDamage) {
         modPool = prestigeMapMods;
