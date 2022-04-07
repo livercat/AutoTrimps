@@ -104,69 +104,61 @@ function updateAutoMapsStatus(get) {
         document.getElementById('hiderStatus').innerHTML = hiderStatus;
     }
 }
+
+
 function testMapSpecialModController(noLog) {
-    //Init
+    const highestZ = game.global.highestLevelCleared;
+
+    if (highestZ < 59) {
+        // Map Modifiers not unlocked
+        return true;
+    }
+
+    const modSelector = document.getElementById("advSpecialSelect");
+    if (!modSelector) {
+        // cannot choose mods for some reason
+        return true;
+    }
+
+    // Chooses between farming maps and prestige maps
+    const farm = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
+    const modPool = (farm ? farmingMapMods : prestigeMapMods).filter(m => mapSpecialModifierConfig[m].unlocksAt <= highestZ);
+
+    if (!modPool) {
+        // no relevant mods unlocked
+        return true;
+    }
+
     let mapCost = 0;
+    // For each mod in our preferred mod order...
+    for (const modName of modPool) {
+        // Updates the in-game Mod Selector
+        modSelector.value = modName;
+        // Checks if we can create the map
+        mapCost = updateMapCost(true);
 
-    //No Map Modifier Unlocked
-    if (game.global.highestLevelCleared < 59) return true;
-
-    //Filters available mods //TODO Replace with js equivalent of stream?
-    const availableMods = [];
-    for (const mod of Object.values(mapSpecialModifierConfig)) {
-        if (game.global.highestLevelCleared > mod.unlocksAt) {
-            availableMods.push(mod.abv.toLowerCase());
+        if (mapCost <= game.resources.fragments.owned) {
+            // found an affordable mod
+            break;
+        } else {
+            // Not enough fragments
+            fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
+            if (!noLog) {
+                console.log("Could not afford mod " + mapSpecialModifierConfig[modName].name);
+            }
         }
     }
 
-    //Safety check
-    if (availableMods.length <= 0) return true;
-
-    //Checks if we can access the Mod Selector
-    const modSelector = document.getElementById("advSpecialSelect");
-    if (!modSelector) return true;
-
-    //Chooses between farming maps and prestige maps
-    let farm = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage))
-    let modPool = farm ? farmingMapMods : prestigeMapMods;
-
-    //For each mod in our preferred mod order...
-    for (const mod of modPool.filter(mod => availableMods.includes(mod))) {
-        //Updates the in-game Mod Selector
-        modSelector.value = mod;
-        mapCost = updateMapCost(true);
-
-        //Checks if we can create the map
-        if (mapCost <= game.resources.fragments.owned) break;
-
-        //Not enough fragments
-        fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
-        if (!noLog) console.log("Could not afford mod " + mapSpecialModifierConfig[mod].name);
-    }
-
-    //Resets the Mod Selector if no mod can be bought
+    // can't afford any mod
     if (mapCost > game.resources.fragments.owned) {
-        modSelector.value = "0";
-        updateMapCost(true);
         return false;
     }
 
-    //Log Skipping
-    if (noLog) return true;
-
-    //Log preparation
-    let messageParts = [];
-    if (modSelector.value !== "0")
-        messageParts.push(mapSpecialModifierConfig[modSelector.value].name);
-    if (extraLevelsSelect && extraLevelsSelect.selectedIndex > 0)
-        messageParts.push('z+' + extraLevelsSelect.selectedIndex);
-
-    //Log
-    if (messageParts.length > 0) {
+    if (!noLog && modSelector.value !== "0") {
         const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
-        debug("Set the map special modifier to: " + messageParts.join(', ') + ". Cost: " + ratio + "% of your fragments.");
+        const modName = mapSpecialModifierConfig[modSelector.value].name;
+        debug("Set the map special modifier to: " + modName + ". Cost: " + ratio + "% of your fragments.");
     }
-
     return true;
 }
 
