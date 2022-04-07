@@ -917,13 +917,14 @@ function autoMap() {
                 if (siphLvl > maxLvl) {
                     //TODO -- Buggy when we don't have fragments to create any map with modifiers
                     //Finds the highest map level we can buy modifiers for, plus one
-                    while (game.global.world + getExtraMapLevels() <= siphLvl && testMapSpecialModController(true))
+                    while (game.global.world + getExtraMapLevels() <= siphLvl && getExtraMapLevels() < 10 && testMapSpecialModController(true))
                         document.getElementById('advExtraLevelSelect').value++;
 
                     //Since we can't create a map for zone X + 1, target zone X
-                    if (getExtraMapLevels() > 0) document.getElementById('advExtraLevelSelect').value--;
+                    if (getExtraMapLevels() > 0 && (getExtraMapLevels() < 10 || !testMapSpecialModController(true)))
+                        document.getElementById('advExtraLevelSelect').value--;
 
-                    //Reduce our map zone to world - 1 if we can't create a map for world + 1
+                    //(Map Loot) Reduces our map zone to world - 1 if we can't create a map for world + 1
                     if (game.talents.mapLoot.purchased && getExtraMapLevels() == 0) $mapLevelInput.value--;
 
                     //Update our control flags
