@@ -112,7 +112,7 @@ function _updateMapCost() {
 }
 
 function testMapSpecialModController(noLog) {
-    let mapCost = _updateMapCost();
+    let mapCost = updateMapCost(true);
     if (mapCost > game.resources.fragments.owned) {
         // not enough fragments even for a base map
         return false;
@@ -145,18 +145,20 @@ function testMapSpecialModController(noLog) {
 
     for (const mod of modPool.filter(mod => availableMods.includes(mod))) {
         modSelector.value = mod;
-        mapCost = _updateMapCost();
-        if (mapCost <= game.resources.fragments.owned) {
-            // we have a winner!
-            break;
-        } else if (!noLog) {
-            console.log("Could not afford mod " + mapSpecialModifierConfig[mod].name);
-        }
+        mapCost = updateMapCost(true);
+
+        //Checks if we can create the map
+        if (mapCost <= game.resources.fragments.owned) break;
+
+        //Not enough fragments
+        fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
+        if (!noLog) console.log("Could not afford mod " + mapSpecialModifierConfig[mod].name);
     }
+
     if (mapCost > game.resources.fragments.owned) {
         // couldn't afford anything, reset mods
         modSelector.value = "0";
-        _updateMapCost();
+        updateMapCost(true);
         return false;
     }
 
@@ -164,10 +166,10 @@ function testMapSpecialModController(noLog) {
     const extraLevelsSelect = document.getElementById("advExtraMapLevelselect");
     if (game.global.highestLevelCleared >= 209 && extraLevelsSelect) {
         extraLevelsSelect.selectedIndex = 3;
-        mapCost = _updateMapCost();
+        mapCost = updateMapCost(true);
         while (extraLevelsSelect.selectedIndex > 0 && mapCost > game.resources.fragments.owned) {
             extraLevelsSelect.selectedIndex -= 1;
-            mapCost = _updateMapCost();
+            mapCost = updateMapCost(true);
         }
     }
 
