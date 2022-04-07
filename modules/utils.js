@@ -96,7 +96,7 @@ function shouldSpeedRun(achievement) {
 }
 
 function saveSettings(){safeSetItems('autoTrimpSettings',serializeSettings())}
-function debug(a,b,c){var d=getPageSetting('SpamGeneral'),e=getPageSetting('SpamUpgrades'),f=getPageSetting('SpamEquipment'),g=getPageSetting('SpamMaps'),h=getPageSetting('SpamOther'),i=getPageSetting('SpamBuilding'),j=getPageSetting('SpamJobs'),k=getPageSetting('SpamGraphs'),l=getPageSetting('SpamMagmite'),m=getPageSetting('SpamPerks'),n=getPageSetting('SpamProfiles'),o=getPageSetting('SpamNature'),p=!0;switch(b){case null:break;case'general':p=d;break;case'upgrades':p=e;break;case'equips':p=f;break;case'buildings':p=i;break;case'jobs':p=j;break;case'maps':p=g;break;case'other':p=h;break;case'graphs':p=k;break;case'magmite':p=l;break;case'perks':p=m;break;case'profiles':p=n;break;case'nature':p=o;}p&&(enableDebug&&console.log(timeStamp()+' '+a),message2(a,'AutoTrimps',c,b))}
+function debug(a,b,c){var d=getPageSetting('SpamGeneral'),e=getPageSetting('SpamUpgrades'),f=getPageSetting('SpamEquipment'),g=getPageSetting('SpamMaps'),h=getPageSetting('SpamOther'),i=getPageSetting('SpamBuilding'),j=getPageSetting('SpamJobs'),k=getPageSetting('SpamGraphs'),l=getPageSetting('SpamMagmite'),m=getPageSetting('SpamPerks'),n=getPageSetting('SpamProfiles'),o=getPageSetting('SpamNature'),p=!0;switch(b){case null:break;case'general':p=d;break;case'upgrades':p=e;break;case'equips':p=f;break;case'buildings':p=i;break;case'jobs':p=j;break;case'maps':p=g;break;case'other':p=h;break;case'graphs':p=k;break;case'magmite':p=l;break;case'perks':p=m;break;case'profiles':p=n;break;case'nature':p=o;}p&&(enableDebug&&console.log(timeStamp()+' '+a.replace('&nbsp;', ' ')),message2(a,'AutoTrimps',c,b))}
 function timeStamp(){for(var a=new Date,b=[a.getHours(),a.getMinutes(),a.getSeconds()],c=1;3>c;c++)10>b[c]&&(b[c]="0"+b[c]);return b.join(":")}
 function preBuy(){preBuyAmt=game.global.buyAmt,preBuyFiring=game.global.firing,preBuyTooltip=game.global.lockTooltip,preBuymaxSplit=game.global.maxSplit}
 function postBuy(){game.global.buyAmt=preBuyAmt,game.global.firing=preBuyFiring,game.global.lockTooltip=preBuyTooltip,game.global.maxSplit=preBuymaxSplit}
@@ -137,3 +137,67 @@ function ceilToNearestMultipleOf(number, multipleOf, offSet) {
 
 window.onerror=function(b,c,d,e,f){var g=['Message: '+b,'URL: '+c,'Line: '+d,'Column: '+e,'Error object: '+JSON.stringify(f)].join(' - ');0!=d&&console.log('AT logged error: '+g)};
 function throwErrorfromModule(){throw new Error("We have successfully read the thrown error message out of a module")}
+
+
+function generateUID() {
+    // https://stackoverflow.com/questions/6248666/how-to-generate-short-uid-like-ax4j9z-in-js
+    let firstPart = (Math.random() * 46656) | 0;
+    let secondPart = (Math.random() * 46656) | 0;
+    firstPart = ("000" + firstPart.toString(36)).slice(-3);
+    secondPart = ("000" + secondPart.toString(36)).slice(-3);
+    return firstPart + secondPart;
+}
+
+function devDebug(ctx, description, args, separator='=', singleLine=false) {
+    // ctx: {
+    //     id: null,     // if present, will be included before description, useful for grouping multiple log messages. use generateUID() to make it
+    //     module: null, // if present, will be included before description, and it will be checked for the variable "devDebug" to enable logging
+    // }
+    // description: will be logged before the "args"
+    // args: a Map-like collection of key-values, each pair will be logged using "separator"
+    // separator: "args" will be joined using this string
+    // singleLine: if false, each entry of "args" will be logged on its own line.
+    //             if true, all "args" will be logged on a single line, comma-joined.
+    //
+    // Example:
+    // devDebug(ctx={id: "1a2c3", module: "maps"}, description="Checking void maps", args={var1: 1, var2: "b"})
+    // will log:
+    // [AT] 13:10:00 [maps.1a2c3] Checking void maps
+    // [AT] 13:10:00 [maps.1a2c3]     var1=1
+    // [AT] 13:10:00 [maps.1a2c3]     var2=b
+    //
+    //Example 2:
+    // devDebug({}, description="Checking void maps", args={var1: 1, var2: "b"}, separator=': ', singleLine=true)
+    // will log:
+    // [AT] 13:10:00 Checking void maps: var1: 1, var2: b
+    //
+    if (!args && !description) {
+        // nothing to log
+        return;
+    }
+    if (!getPageSetting('SpamDevDebug') && !(MODULES[ctx.module] && MODULES[ctx.module].devDebug)) {
+        // logging is disabled
+        return;
+    }
+    // compose [maps.1a2c3] or [1a2c3] or [maps] or ''
+    ctx = [ctx.module, ctx.id].filter(m => m).join('.'); // remove empty values
+    ctx = (ctx ? `[${ctx}]&nbsp;` : '');
+    let prefix = `${ctx}${description}`;
+
+    const argMessages = Object.entries(args).map(([key, value]) => `${key}${separator}${value}`);
+    if (singleLine) {
+        prefix = (prefix ? `${prefix}: ` : '');
+        debug(`${prefix}${argMessages.join(', ')}`);
+    } else {
+        let argPrefix;
+        if (prefix) {
+            debug(`${prefix}`);
+            argPrefix = '&nbsp;&nbsp;&nbsp;&nbsp;';
+        } else {
+            argPrefix = '';
+        }
+        for (const msg of argMessages) {
+            debug(`${ctx}${argPrefix}${msg}`);
+        }
+    }
+}

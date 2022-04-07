@@ -20,6 +20,9 @@ MODULES.maps.shouldFarmHigherZone = true; //Allows farming on a map level above 
 MODULES.maps.forceModifier = true; //Will make elaborate attempts at keeping you at maps with the right modifier (good when farming spire or pushing)
 MODULES.maps.magmaHitsSurvived = 2; //Your geneticists are frequently lagging 1-2 zones behind when speeding through magma, which is why this is important
 
+// Dev debug
+MODULES.maps.devDebug = false;
+
 var enoughDamage = true;
 var enoughHealth = true;
 var isFarming = false;
@@ -286,6 +289,10 @@ function autoMap() {
     var prestige = autoTrimpSettings.Prestige.selected;
     var challSQ = game.global.runningChallengeSquared;
     var extraMapLevels = 0;
+    const debugCtx = {
+        id: generateUID(),
+        module: "maps"
+    }
 
     //Reset to defaults
     if (prestige != "Off" && game.options.menu.mapLoot.enabled != 1) toggleSetting('mapLoot');
@@ -773,52 +780,44 @@ function autoMap() {
 
             //End Prestige
             if (!shouldDoMaps && endPrestige && (game.global.world + extraMapLevels) <= lastPrestige + (getScientistLevel() >= 4 && lastPrestige%10 < 6 ? 14 : 9)) {
-                console.log("debug1");
                 repeatClicked();
             }
 
             //Health Farming
             if (shouldDoHealthMaps && game.global.mapBonus >= getPageSetting('MaxMapBonushealth') - 1) {
-                console.log("debug2");
                 repeatClicked();
                 shouldDoHealthMaps = false;
             }
 
             //Damage Farming
             if (doMaxMapBonus && game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') - 1) {
-                console.log("debug3");
                 repeatClicked();
                 doMaxMapBonus = false;
             }
 
             //Want to recreate the map
             if (tryBetterMod && game.resources.fragments.owned >= fragmentsNeeded) {
-                console.log("debug4");
                 repeatClicked();
             }
 
             //Want to exit the current map to pRaid
             if (mapExiting) {
-                console.log("debug5");
                 repeatClicked();
             }
         } else {
             console.log("debugx");
             //Start with Repeat Off
             if (game.global.repeatMap) {
-                console.log("debugx1");
                 repeatClicked();
             }
 
             //Turn if back on if it want to recreate a map, but doesn't have the fragments to do it
             if (tryBetterMod && game.resources.fragments.owned < fragmentsNeeded) {
-                console.log("debugx2");
                 repeatClicked();
             }
 
             //Force Abandon to restart void maps
             if (restartVoidMap) {
-                console.log("debugx3");
                 mapsClicked(true);
             }
         }
@@ -847,6 +846,12 @@ function autoMap() {
         }
     }
     else if (game.global.preMapsActive) {
+        devDebug(debugCtx, "Checking maps", {
+            siphLvl: siphLvl,
+            siphonMap: siphonMap,
+            altSiphMap: altSiphMap,
+            selectedMap: selectedMap
+        });
         if (selectedMap == "world") {
             mapsClicked();
         }
