@@ -988,7 +988,7 @@ function initializeAllSettings() {
     createSetting('SpamMagmite', 'Magmite/Magma Spam', 'Everything in Magmite Module and Buy Magmamancers', 'boolean', true, null, 'Display');
     createSetting('SpamPerks', 'AutoPerks Spam', 'Everything in related to AutoPerks', 'boolean', true, null, 'Display');
     createSetting('SpamNature', 'Nature Spam', 'Everything in related to Nature', 'boolean', true, null, 'Display');
-
+    createSetting('SpamDevDebug', 'Dev Debug', 'Enable dev debug messages from all modules. You most likely don\'t want this.', 'boolean', false, null, 'Display');
 
 
     //Export/Import/Default
