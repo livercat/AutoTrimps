@@ -788,52 +788,44 @@ function autoMap() {
 
             //End Prestige
             if (!shouldDoMaps && endPrestige && (game.global.world + extraMapLevels) <= lastPrestige + (getScientistLevel() >= 4 && lastPrestige%10 < 6 ? 14 : 9)) {
-                // console.log("debug1");
                 repeatClicked();
             }
 
             //Health Farming
             if (shouldDoHealthMaps && game.global.mapBonus >= getPageSetting('MaxMapBonushealth') - 1) {
-                // console.log("debug2");
                 repeatClicked();
                 shouldDoHealthMaps = false;
             }
 
             //Damage Farming
             if (doMaxMapBonus && game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') - 1) {
-                // console.log("debug3");
                 repeatClicked();
                 doMaxMapBonus = false;
             }
 
             //Want to recreate the map
             if (tryBetterMod && game.resources.fragments.owned >= fragmentsNeeded) {
-                // console.log("debug4");
                 repeatClicked();
             }
 
             //Want to exit the current map to pRaid
             if (mapExiting) {
-                // console.log("debug5");
                 repeatClicked();
             }
         } else {
             console.log("debugx");
             //Start with Repeat Off
             if (game.global.repeatMap) {
-                // console.log("debugx1");
                 repeatClicked();
             }
 
             //Turn if back on if it want to recreate a map, but doesn't have the fragments to do it
             if (tryBetterMod && game.resources.fragments.owned < fragmentsNeeded) {
-                // console.log("debugx2");
                 repeatClicked();
             }
 
             //Force Abandon to restart void maps
             if (restartVoidMap) {
-                // console.log("debugx3");
                 mapsClicked(true);
             }
         }
