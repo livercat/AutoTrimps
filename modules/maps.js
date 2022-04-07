@@ -104,46 +104,35 @@ function updateAutoMapsStatus(get) {
         document.getElementById('hiderStatus').innerHTML = hiderStatus;
     }
 }
-
-function _updateMapCost() {
-    const mapCost = updateMapCost(true);
-    fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
-    return fragmentsNeeded;
-}
-
 function testMapSpecialModController(noLog) {
-    let mapCost = updateMapCost(true);
-    if (mapCost > game.resources.fragments.owned) {
-        // not enough fragments even for a base map
-        return false;
-    }
-    if (game.global.highestLevelCleared < 59) {
-        // map mods aren't unlocked yet
-        return true;
-    }
+    //Init
+    let mapCost = 0;
+
+    //No Map Modifier Unlocked
+    if (game.global.highestLevelCleared < 59) return true;
+
+    //Filters available mods //TODO Replace with js equivalent of stream?
     const availableMods = [];
     for (const mod of Object.values(mapSpecialModifierConfig)) {
         if (game.global.highestLevelCleared > mod.unlocksAt) {
             availableMods.push(mod.abv.toLowerCase());
         }
     }
-    if (availableMods.length <= 0) {
-        // no map mods are unlocked
-        return true;
-    }
-    const modSelector = document.getElementById("advSpecialSelect");
-    if (!modSelector) {
-        // cannot access mod selector element
-        return true;
-    }
-    let modPool = [];
-    if (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage)) {
-        modPool = farmingMapMods;
-    } else if (needPrestige && enoughDamage) {
-        modPool = prestigeMapMods;
-    }
 
+    //Safety check
+    if (availableMods.length <= 0) return true;
+
+    //Checks if we can access the Mod Selector
+    const modSelector = document.getElementById("advSpecialSelect");
+    if (!modSelector) return true;
+
+    //Chooses between farming maps and prestige maps
+    let farm = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage))
+    let modPool = farm ? farmingMapMods : prestigeMapMods;
+
+    //For each mod in our preferred mod order...
     for (const mod of modPool.filter(mod => availableMods.includes(mod))) {
+        //Updates the in-game Mod Selector
         modSelector.value = mod;
         mapCost = updateMapCost(true);
 
@@ -155,35 +144,24 @@ function testMapSpecialModController(noLog) {
         if (!noLog) console.log("Could not afford mod " + mapSpecialModifierConfig[mod].name);
     }
 
+    //Resets the Mod Selector if no mod can be bought
     if (mapCost > game.resources.fragments.owned) {
-        // couldn't afford anything, reset mods
         modSelector.value = "0";
         updateMapCost(true);
         return false;
     }
 
-    // Extra Map levels
-    const extraLevelsSelect = document.getElementById("advExtraMapLevelselect");
-    if (game.global.highestLevelCleared >= 209 && extraLevelsSelect) {
-        extraLevelsSelect.selectedIndex = 3;
-        mapCost = updateMapCost(true);
-        while (extraLevelsSelect.selectedIndex > 0 && mapCost > game.resources.fragments.owned) {
-            extraLevelsSelect.selectedIndex -= 1;
-            mapCost = updateMapCost(true);
-        }
-    }
+    //Log Skipping
+    if (noLog) return true;
 
-    if (mapCost > game.resources.fragments.owned) {
-        return false;
-    }
-
+    //Log preparation
     let messageParts = [];
-    if (modSelector.value !== "0") {
+    if (modSelector.value !== "0")
         messageParts.push(mapSpecialModifierConfig[modSelector.value].name);
-    }
-    if (extraLevelsSelect && extraLevelsSelect.selectedIndex > 0) {
+    if (extraLevelsSelect && extraLevelsSelect.selectedIndex > 0)
         messageParts.push('z+' + extraLevelsSelect.selectedIndex);
-    }
+
+    //Log
     if (messageParts.length > 0) {
         const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
         debug("Set the map special modifier to: " + messageParts.join(', ') + ". Cost: " + ratio + "% of your fragments.");
@@ -953,7 +931,7 @@ function autoMap() {
 
                     //Update our control flags
                     extraMapLevels = getExtraMapLevels();
-                    gotBetterMod = (parseInt($mapLevelInput.value) + getExtraMapLevels() > altSiphLevel) && testMapSpecialModController(true);
+                    gotBetterMod = (parseInt($mapLevelInput.value) + extraMapLevels > altSiphLevel) && testMapSpecialModController(true);
                 }
                 else gotBetterMod = testMapSpecialModController(tryBetterMod);
             }
