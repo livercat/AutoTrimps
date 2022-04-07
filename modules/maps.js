@@ -195,60 +195,42 @@ function updateAutoMapsStatus(get) {
 }
 
 
-function testMapSpecialModController(noLog) {
+function testMapSpecialModController() {
     const highestZ = game.global.highestLevelCleared;
-
     if (highestZ < 59) {
         // Map Modifiers not unlocked
-        return true;
+        return {canAfford: true};
     }
-
     const modSelector = document.getElementById("advSpecialSelect");
     if (!modSelector) {
         // cannot choose mods for some reason
-        return true;
+        return {canAfford: true};
     }
-
     // Chooses between farming maps and prestige maps
     const farm = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
-    const modPool = (farm ? farmingMapMods : prestigeMapMods).filter(m => mapSpecialModifierConfig[m].unlocksAt <= highestZ);
-
-    if (!modPool) {
-        // no relevant mods unlocked
-        return true;
-    }
-
-    let mapCost = 0;
-    // For each mod in our preferred mod order...
-    for (const modName of modPool) {
-        // Updates the in-game Mod Selector
-        modSelector.value = modName;
-        // Checks if we can create the map
-        mapCost = updateMapCost(true);
-
-        if (mapCost <= game.resources.fragments.owned) {
-            // found an affordable mod
-            break;
-        } else {
-            // Not enough fragments
-            fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
-            if (!noLog) {
-                console.log("Could not afford mod " + mapSpecialModifierConfig[modName].name);
-            }
+    const modPool = (farm ? farmingMapMods : prestigeMapMods);
+    let targetMod;
+    modPool.some(m => {
+        if (mapSpecialModifierConfig[m].unlocksAt <= highestZ) {
+            targetMod = m;
+            return true; // this returns from some(), not from testMapSpecialModController()
         }
+    });
+    if (!targetMod) {
+        // no relevant mods unlocked
+        return {canAfford: true};
     }
-
-    // can't afford any mod
-    if (mapCost > game.resources.fragments.owned) {
-        return false;
+    // Check if we can afford the chosen mod
+    modSelector.value = targetMod;
+    const mapCost = updateMapCost(true);
+    if (mapCost <= game.resources.fragments.owned) {
+        // can afford it!
+        return {canAfford: true, targetMod: targetMod, mapCost: mapCost};
+    } else {
+        // Not enough fragments
+        fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
+        return {canAfford: false, targetMod: targetMod, mapCost: mapCost};
     }
-
-    if (!noLog && modSelector.value !== "0") {
-        const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
-        const modName = mapSpecialModifierConfig[modSelector.value].name;
-        debug("Set the map special modifier to: " + modName + ". Cost: " + ratio + "% of your fragments.");
-    }
-    return true;
 }
 
 function getMapHealthCutOff(pure) {
@@ -835,7 +817,6 @@ function autoMap() {
                 repeatClicked();
             }
         } else {
-            console.log("debugx");
             //Start with Repeat Off
             if (game.global.repeatMap) {
                 repeatClicked();
@@ -881,7 +862,7 @@ function autoMap() {
             siphonMap: siphonMap,
             altSiphMap: altSiphMap,
             selectedMap: selectedMap
-        });
+        }, '=', true);
         if (selectedMap == "world") {
             mapsClicked();
         }
@@ -943,15 +924,15 @@ function autoMap() {
             while (sizeAdvMapsRange.value > 0 && updateMapCost(true) > game.resources.fragments.owned) {
                 sizeAdvMapsRange.value -= 1;
             }
+            let modResult;
             if (getPageSetting('AdvMapSpecialModifier')) {
                 if (siphLvl > maxLvl) {
-                    //TODO -- Buggy when we don't have fragments to create any map with modifiers
                     //Finds the highest map level we can buy modifiers for, plus one
-                    while (game.global.world + getExtraMapLevels() <= siphLvl && getExtraMapLevels() < 10 && testMapSpecialModController(true))
+                    while (game.global.world + getExtraMapLevels() <= siphLvl && getExtraMapLevels() < 10 && testMapSpecialModController().canAfford)
                         document.getElementById('advExtraLevelSelect').value++;
 
                     //Since we can't create a map for zone X + 1, target zone X
-                    if (getExtraMapLevels() > 0 && (getExtraMapLevels() < 10 || !testMapSpecialModController(true)))
+                    if (getExtraMapLevels() > 0 && (getExtraMapLevels() < 10 || !testMapSpecialModController().canAfford))
                         document.getElementById('advExtraLevelSelect').value--;
 
                     //(Map Loot) Reduces our map zone to world - 1 if we can't create a map for world + 1
@@ -959,11 +940,25 @@ function autoMap() {
 
                     //Update our control flags
                     extraMapLevels = getExtraMapLevels();
-                    gotBetterMod = (parseInt($mapLevelInput.value) + extraMapLevels > altSiphLevel) && testMapSpecialModController(true);
+                    modResult = testMapSpecialModController();
+                    gotBetterMod = (parseInt($mapLevelInput.value) + extraMapLevels > altSiphLevel) && modResult.canAfford;
+                } else {
+                    modResult = testMapSpecialModController();
+                    gotBetterMod = modResult.canAfford;
                 }
-                else gotBetterMod = testMapSpecialModController(tryBetterMod);
             }
-            var mapLvlPicked = parseInt($mapLevelInput.value) + (getPageSetting('AdvMapSpecialModifier') ? getExtraMapLevels() : 0);
+            var mapLvlPicked = parseInt($mapLevelInput.value) + (getPageSetting('AdvMapSpecialModifier') ? extraMapLevels : 0);
+
+            if (modResult) {
+                if (gotBetterMod) {
+                    const ratio = (100 * (modResult.mapCost / game.resources.fragments.owned)).toFixed(2);
+                    const extraLevelsMsg = (extraMapLevels ? `, z+${extraMapLevels}` : '');
+                    debug(`Set the map special modifier to: ${mapSpecialModifierConfig[modResult.targetMod].name}${extraLevelsMsg}. Cost: ${ratio}% of your fragments.`);
+                } else {
+                    // not devDebug because it's too spammy
+                    console.log(`Couldn't afford target map mod ${modResult.targetMod}, fragmentsNeeded=${prettify(fragmentsNeeded)}`);
+                }
+            }
 
             //Sorry for the mess, this whole thing needs a rework
             if (tryBetterMod) {
