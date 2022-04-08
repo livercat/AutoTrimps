@@ -993,7 +993,12 @@ function autoMap() {
             }
 
             //Can't create a map better than what we already have
-            if (mapLvlPicked <= game.global.mapsOwnedArray[highestMap].level) return;
+            if (highestMap && mapLvlPicked <= game.global.mapsOwnedArray[highestMap].level) {
+                selectMap(game.global.mapsOwnedArray[highestMap].id);
+                runMap();
+                lastMapWeWereIn = getCurrentMapObject();
+                return;
+            }
 
             //No fragments to create a map
             if (updateMapCost(true) > game.resources.fragments.owned) {
