@@ -229,6 +229,7 @@ function testMapSpecialModController() {
     } else {
         // Not enough fragments
         fragmentsNeeded = Math.max(fragmentsNeeded, mapCost);
+        modSelector.value = '0';  // reset the selector to "no bonus"
         return {canAfford: false, targetMod: targetMod, mapCost: mapCost};
     }
 }
