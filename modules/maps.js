@@ -452,17 +452,23 @@ function getMapRatio(map, customLevel, customDiff) {
     return Math.max(mapDmg, mapHp);
 }
 
-function getMapScore(map, modPool) {
+function getMapScore(map, modPool, onlyBestMod) {
     // this function is used when comparing crafted maps - the greater result means a better map
     if (!map) {
         return [-1, -1];
     }
-    // mod pools are ordered from best to worst, so we invert the index to get the score
-    const modScore = (modPool.length - (modPool.includes(map.bonus) ? modPool.indexOf(map.bonus) : 999));
+    let modScore;
+    if (onlyBestMod) {
+        // give zero points if the map doesn't have the best mod of the pool. useful to filter farming maps by LMC
+        modScore = (map.bonus === modPool[0] ? 1 : 0);
+    } else {
+        // mod pools are ordered from best to worst, so we invert the index to get the score
+        modScore = (modPool.length - (modPool.includes(map.bonus) ? modPool.indexOf(map.bonus) : 999));
+    }
     return [map.level, modScore]
 }
 
-function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel) {
+function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel, onlyBestMod=false) {
     // disqualify some maps right away
     const maps = [map1, map2].filter(m => (m && m.level >= minLevel && m.level <= maxLevel));
     if (!maps) {
@@ -471,7 +477,7 @@ function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel) {
         return maps[0];
     }
     // select a new map if it's strictly better
-    if (getMapScore(map2, modPool) > getMapScore(map1, modPool)) {
+    if (getMapScore(map2, modPool, onlyBestMod) > getMapScore(map1, modPool, onlyBestMod)) {
         return map2;
     } else {
         return map1;
@@ -761,7 +767,7 @@ function autoMap() {
     for (const map of game.global.mapsOwnedArray) {
         if (!map.noRecycle) {
             if (map.level === optimalMapLvl) {
-                optimalMap = selectBetterCraftedMap(optimalMap, map, modPool, minMapLvl, optimalMapLvl);
+                optimalMap = selectBetterCraftedMap(optimalMap, map, modPool, minMapLvl, optimalMapLvl, true);
             } else {
                 alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1);
             }
@@ -901,7 +907,7 @@ function autoMap() {
     const gettingPrestige = (!farming && needPrestige);
     const modsUnlocked = game.global.highestLevelCleared >= 59
 
-    //Automaps
+    // Automaps
     var tryBetterMod = false;
     if (shouldDoMaps || doVoids || needPrestige) {
         if (selectedMap === "world") {
@@ -1069,11 +1075,17 @@ function autoMap() {
                     }
                     if (!currentMap) {
                         // we don't have a suitable map, so get any decent map to run
-                        setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
-                        // try to get any map mod, it's better than nothing
-                        bestMod = setAffordableMapMod(modPool); //TODO If farming, we should intead try a better level map with LMC
-                        // remember the next fragments goal
-                        fragmentsNeeded = bestMod.cost;
+                        const mapLevel = Math.min(optimalMapLvl, baseMapLvl);
+                        if (farming) {
+                            // prioritize caches for farming
+                            bestMod = setAffordableMapMod(farmingMapMods);
+                            fragmentsNeeded = setAffordableMapLevel(mapLevel);
+                        } else {
+                            // otherwise, prioritize levels
+                            setAffordableMapLevel(mapLevel);
+                            bestMod = setAffordableMapMod(modPool);
+                            fragmentsNeeded = bestMod.cost;
+                        }
                         shouldBuyMap = canAffordSelectedMap();
                     } else if (farming) {
                         // for farming, a map bonus (LMC/HC/etc) is better than levels
