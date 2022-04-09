@@ -1037,7 +1037,7 @@ function autoMap() {
             tryCrafting: tryCrafting,
             farming: farming,
             gettingPrestige: gettingPrestige,
-            fragmentsNeeded: fragmentsNeeded
+            fragmentsNeeded: prettify(fragmentsNeeded)
         }, '=', true);
 
         if (selectedMap === "world") {
@@ -1114,7 +1114,7 @@ function autoMap() {
             if (fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded) {
                 const wanted = [(bestMod ? bestMod.mod : undefined),
                     (currentMapLevel < optimalMapLvl ? `+${optimalMapLvl-currentMapLevel}lvl` : undefined)].filter(m => m).join(', ');
-                debug(`Will recheck map upgrades when we have ${fragmentsNeeded} fragments (want: ${wanted})`, "maps", 'th-large');
+                debug(`Will recheck map upgrades when we have ${prettify(fragmentsNeeded)} fragments (want: ${wanted})`, "maps", 'th-large');
             }
 
             if (shouldBuyMap) {
