@@ -1069,9 +1069,9 @@ function autoMap() {
                     }
                     if (!currentMap) {
                         // we don't have a suitable map, so get any decent map to run
-                        setAffordableMapLevel(optimalMapLvl);
+                        setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
                         // try to get any map mod, it's better than nothing
-                        bestMod = setAffordableMapMod(modPool);
+                        bestMod = setAffordableMapMod(modPool); //TODO If farming, we should intead try a better level map with LMC
                         // remember the next fragments goal
                         fragmentsNeeded = bestMod.cost;
                         shouldBuyMap = canAffordSelectedMap();
@@ -1095,7 +1095,7 @@ function autoMap() {
                         shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
                     } else {
                         // if not farming, we're getting prestige or map stacks. in this case prioritize levels over random mods
-                        setAffordableMapLevel(optimalMapLvl);
+                        setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
                         bestMod = setAffordableMapMod(modPool);
                         fragmentsNeeded = bestMod.cost;
                         const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
