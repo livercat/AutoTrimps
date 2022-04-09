@@ -229,8 +229,12 @@ function autoGenerator() {
 
     //After Fuel
     else {
-        //Pseudo-Hybrid. It simply end the run in Mi mode
-        if (getPageSetting("defaultgen") == 2 && !game.permanentGeneratorUpgrades.Hybridization.owned) afterFuelState = 0;
+        //Pseudo-Hybrid. It fuels until full, then goes into Mi mode
+        if (getPageSetting("defaultgen") == 2 && !game.permanentGeneratorUpgrades.Hybridization.owned) {
+            beforeFuelState = game.global.generatorMode;
+            if (game.global.world == 230 && game.global.lastClearedCell < 14) afterFuelState = 1;
+            if (game.global.magmaFuel == getGeneratorFuelCap(false, true)) afterFuelState = 0;
+        }
         changeGeneratorState(afterFuelState);
     }
 }
