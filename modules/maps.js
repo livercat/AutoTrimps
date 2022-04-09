@@ -333,7 +333,7 @@ function setAffordableMapLevel(maxLevel) {
     while ((z + getExtraMapLevels()) <= maxLevel && getExtraMapLevels() < 10) {
         const mapCost = updateMapCost(true);
         highestCost = Math.max(highestCost, mapCost);
-        if (mapCost <= game.resources.fragments.owned) {
+        if ((z + getExtraMapLevels()) < maxLevel && mapCost <= game.resources.fragments.owned) {
             extraLevelsSelector.value++;
         } else {
             break;
