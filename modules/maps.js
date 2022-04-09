@@ -738,6 +738,7 @@ function autoMap() {
             else if (game.upgrades.Dominance.done) ratio /= 4;
 
             //Stop increasing map level once we get to the right ratio. We use 1.2 here because created maps are usually shorter and easier
+            if (game.global.world < 40 && ratio > 1.5) break;
             if (ratio > 1.2) break;
         }
 
