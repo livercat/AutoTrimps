@@ -1071,7 +1071,7 @@ function autoMap() {
                         // we don't have a suitable map, so get any decent map to run
                         setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
                         // try to get any map mod, it's better than nothing
-                        bestMod = setAffordableMapMod(modPool); //TODO If farming, we should intead try a better level map with LMC
+                        bestMod = setAffordableMapMod(modPool); //TODO If farming, we should instead try a better level map with LMC
                         // remember the next fragments goal
                         fragmentsNeeded = bestMod.cost;
                         shouldBuyMap = canAffordSelectedMap();
@@ -1114,7 +1114,7 @@ function autoMap() {
             if (fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded) {
                 const wanted = [(bestMod ? bestMod.mod : undefined),
                     (currentMapLevel < optimalMapLvl ? `+${optimalMapLvl-currentMapLevel}lvl` : undefined)].filter(m => m).join(', ');
-                debug(`Will recheck map upgrades when we have ${fragmentsNeeded} fragments (want: ${wanted})`, "maps", 'th-large');
+                debug(`Will recheck map upgrades when we have ${prettify(fragmentsNeeded)} fragments (want: ${wanted})`, "maps", 'th-large');
             }
 
             if (shouldBuyMap) {
