@@ -1115,7 +1115,7 @@ function autoMap() {
                         devDebug(debugCtx, 'Designed a map', {
                             gotBetterBonus: gotBetterBonus, gotBetterLevel: gotBetterLevel,
                             selectedMapMod: selectedMod, selectedMapLevel: totalMapLevel,
-                            bestModName: bestMod.mod, bestModCost: bestMod.cost
+                            bestModName: bestMod.mod, bestModCost: prettify(bestMod.cost)
                         }, '=', true);
                         shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
                     } else {
