@@ -194,15 +194,8 @@ function updateAutoMapsStatus(get) {
     }
 }
 
-function configureMapSliders(customVars, optimalMapLvl) {
-    const $mapLevelInput = document.getElementById("mapLevelInput");
-    if (preSpireFarming && MODULES["maps"].SpireFarm199Maps) {
-        $mapLevelInput.value = game.talents.mapLoot.purchased ? game.global.world - 1 : game.global.world;
-    } else if (needPrestige || optimalMapLvl > game.global.world){
-        $mapLevelInput.value = game.global.world;
-    } else {
-        $mapLevelInput.value = optimalMapLvl;
-    }
+function configureMapSliders(customVars, minLevel) {
+    document.getElementById("mapLevelInput").value = minLevel;
 
     let decrement, tier;
     if (game.global.world >= customVars.MapTierZone[0]) {
@@ -258,7 +251,7 @@ function configureMapSliders(customVars, optimalMapLvl) {
     return canAffordSelectedMap();
 }
 
-function maybeSetMapMod(modPool) {
+function maybeSetBestMapMod(modPool) {
     // chooses the best map mod from the pool that we have unlocked, and sets crafting selector to its value
     // if we can't afford the resulting map, resets the selector to "no bonus"
     const modSelector = document.getElementById("advSpecialSelect");
@@ -266,14 +259,7 @@ function maybeSetMapMod(modPool) {
         // cannot choose mods for some reason
         return {mod: undefined, cost: 0};
     }
-    let targetMod;
-    const hze = game.global.highestLevelCleared;
-    modPool.some(m => {
-        if (mapSpecialModifierConfig[m].unlocksAt <= hze) {
-            targetMod = m;
-            return true; // this returns from some(), not from maybeSetMapMod()
-        }
-    });
+    const targetMod = (modPool.length ? modPool[0] : undefined);
     if (!targetMod) {
         // no relevant mods unlocked
         return {mod: undefined, cost: 0};
@@ -295,21 +281,17 @@ function setAffordableMapMod(modPool) {
         // cannot choose mods for some reason
         return {mod: undefined, cost: 0};
     }
-    const hze = game.global.highestLevelCleared;
-    let bestModCost = 0;
-    let bestMod;
-    for (const modName of modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze)) {
+    let bestModCost, bestMod;
+    for (const modName of modPool) {
         modSelector.value = modName;
         const mapCost = updateMapCost(true);
         if (bestMod === undefined) {
             bestMod = modName;
+            bestModCost = mapCost;
         }
         if (mapCost <= game.resources.fragments.owned) {
             // found an affordable mod
             break;
-        } else {
-            // remember the highest mod cost
-            bestModCost = Math.max(0, mapCost);
         }
     }
 
@@ -329,21 +311,44 @@ function setAffordableMapLevel(maxLevel) {
         return getExtraMapLevels();
     }
     const z = game.global.world;
-    let highestCost = 0;
-    while ((z + getExtraMapLevels()) <= maxLevel && getExtraMapLevels() < 10) {
-        const mapCost = updateMapCost(true);
-        highestCost = Math.max(highestCost, mapCost);
-        if ((z + getExtraMapLevels()) < maxLevel && mapCost <= game.resources.fragments.owned) {
+    const baseMapLevel = Math.min(z, maxLevel);
+
+    // first max out the base map level
+    let mapCost = 0;
+    const $mapLevelInput = document.getElementById("mapLevelInput");
+    while (parseInt($mapLevelInput.value) < baseMapLevel) {
+        mapCost = updateMapCost(true);
+        if (mapCost <= game.resources.fragments.owned) {
+            $mapLevelInput.value++
+        } else {
+            break;
+        }
+    }
+    // if we can't afford current level, decrement it to the previous (affordable) value
+    mapCost = updateMapCost(true);
+    if (mapCost > game.resources.fragments.owned && parseInt($mapLevelInput.value) > 6) {
+        $mapLevelInput.value--;
+    }
+    if (parseInt($mapLevelInput.value) < baseMapLevel) {
+        // didn't even get to the base level, so no point in trying extra levels
+        return mapCost;
+    }
+
+    // try to get extra map levels
+    while ((z + getExtraMapLevels()) < maxLevel && getExtraMapLevels() < 10) {
+        mapCost = updateMapCost(true);
+        if (mapCost <= game.resources.fragments.owned) {
             extraLevelsSelector.value++;
         } else {
             break;
         }
     }
-    // decrement level until we can afford it
-    while (getExtraMapLevels() > 0 && updateMapCost(true) > game.resources.fragments.owned) {
+    mapCost = updateMapCost(true);
+    // if we can't afford current level, decrement it to the previous (affordable) value
+    while (getExtraMapLevels() > 0 && mapCost > game.resources.fragments.owned) {
         extraLevelsSelector.value--;
     }
-    return highestCost;
+    return mapCost;
 }
 
 function getSelectedMapMod() {
@@ -457,18 +462,12 @@ function getMapScore(map, modPool, onlyBestMod) {
     if (!map) {
         return [-1, -1];
     }
-    let modScore;
-    if (onlyBestMod) {
-        // give zero points if the map doesn't have the best mod of the pool. useful to filter farming maps by LMC
-        modScore = (map.bonus === modPool[0] ? 1 : 0);
-    } else {
-        // mod pools are ordered from best to worst, so we invert the index to get the score
-        modScore = (modPool.length - (modPool.includes(map.bonus) ? modPool.indexOf(map.bonus) : 999));
-    }
-    return [map.level, modScore]
+    // mod pools are ordered from best to worst, so we invert the index to get the score
+    const modScore = (modPool.length - (modPool.includes(map.bonus) ? modPool.indexOf(map.bonus) : 999));
+    return [map.level, modScore];
 }
 
-function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel, onlyBestMod=false) {
+function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel) {
     // disqualify some maps right away
     const maps = [map1, map2].filter(m => (m && m.level >= minLevel && m.level <= maxLevel));
     if (!maps) {
@@ -477,7 +476,7 @@ function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel, onlyBes
         return maps[0];
     }
     // select a new map if it's strictly better
-    if (getMapScore(map2, modPool, onlyBestMod) > getMapScore(map1, modPool, onlyBestMod)) {
+    if (getMapScore(map2, modPool) > getMapScore(map1, modPool)) {
         return map2;
     } else {
         return map1;
@@ -755,22 +754,38 @@ function autoMap() {
     }
 
     // Farms on "Oneshot level" + 1, except on magma or in Coordinated challenge
-    var extraConditions = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming);
-    if (extraConditions && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active() && optimalMapLvl < baseMapLvl) {
+    var extraConditions = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || needPrestige);
+    if (extraConditions && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
         optimalMapLvl++;
     }
+
+    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
+    const gettingPrestige = (!farming && needPrestige);
+    const modsUnlocked = game.global.highestLevelCleared >= 59;
+    const hze = game.global.highestLevelCleared;
+    let modPool;
+    if (farming) {
+        modPool = farmingMapMods;
+    } else if (gettingPrestige) {
+        modPool = prestigeMapMods;
+    } else {
+        modPool = ['fa'];  // cheap fallback
+    }
+    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze)
 
     let optimalMap = null;
     let alternativeMap = null;
     let highestMap = null;
     let lowestMap = null;
-    const modPool = (!isFarming && needPrestige ? prestigeMapMods : farmingMapMods);
+
     for (const map of game.global.mapsOwnedArray) {
         if (!map.noRecycle) {
-            if (map.level === optimalMapLvl) {
-                optimalMap = selectBetterCraftedMap(optimalMap, map, modPool, minMapLvl, optimalMapLvl, true);
-            } else {
-                alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1);
+            if (!optimalMap) {
+                if (map.level === optimalMapLvl && map.bonus === modPool[0]) {
+                    optimalMap = selectBetterCraftedMap(optimalMap, map, modPool.slice(0), minMapLvl, optimalMapLvl);
+                } else {
+                    alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1);
+                }
             }
             if (!highestMap || map.level > highestMap.level) {
                 highestMap = map;
@@ -904,12 +919,7 @@ function autoMap() {
         shouldDoMaps = false;
     }
 
-    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
-    const gettingPrestige = (!farming && needPrestige);
-    const modsUnlocked = game.global.highestLevelCleared >= 59
-
     // Automaps
-    var tryBetterMod = false;
     if (shouldDoMaps || doVoids || needPrestige) {
         if (selectedMap === "world") {
             if (preSpireFarming) {
@@ -931,16 +941,7 @@ function autoMap() {
                 }
             } else if (optimalMap) {
                 selectedMap = optimalMap.id;
-                if (modsUnlocked && MODULES.maps.forceModifier && !optimalMap.hasOwnProperty("bonus")) {
-                    // the best map we have doesn't have a mod; let's try to get a better map!
-                    tryBetterMod = true;
-                }
-            } else if (alternativeMap) {
-                // we have a non-optimal map, so we should try crafting a better one
-                selectedMap = "create";
-                tryBetterMod = modsUnlocked;
-            }
-            else {
+            } else {
                 selectedMap = "create";
             }
         }
@@ -950,6 +951,8 @@ function autoMap() {
             mapsClicked();
         return;
     }
+
+    const tryCrafting = selectedMap === "create";
     if (!game.global.preMapsActive && game.global.mapsActive) {
         var doDefaultMapBonus = game.global.mapBonus < getPageSetting('MaxMapBonuslimit') - 1;
         if (selectedMap == game.global.currentMapId && !getCurrentMapObject().noRecycle && (doDefaultMapBonus || vanillaMapatZone || doMaxMapBonus || shouldFarm || needPrestige || shouldDoSpireMaps || mapExiting)) {
@@ -983,7 +986,7 @@ function autoMap() {
             }
 
             //Want to recreate the map
-            if (tryBetterMod && game.resources.fragments.owned >= fragmentsNeeded) {
+            if (tryCrafting && game.resources.fragments.owned >= fragmentsNeeded) {
                 repeatClicked();
             }
 
@@ -998,7 +1001,7 @@ function autoMap() {
             }
 
             //Turn if back on if it want to recreate a map, but doesn't have the fragments to do it
-            if (tryBetterMod && game.resources.fragments.owned < fragmentsNeeded) {
+            if (tryCrafting && game.resources.fragments.owned < fragmentsNeeded) {
                 repeatClicked();
             }
 
@@ -1031,7 +1034,6 @@ function autoMap() {
             }
         }
     } else if (game.global.preMapsActive) {
-        const tryCrafting = selectedMap === "create" || tryBetterMod;
         devDebug(debugCtx, "Siphonology and selected maps", {
             minMapLvl: minMapLvl,
             baseMapLvl: baseMapLvl,
@@ -1050,48 +1052,52 @@ function autoMap() {
         if (selectedMap === "world") {
             mapsClicked();
         } else if (!tryCrafting) {
+            let mapType;
+            if (optimalMap && selectedMap === optimalMap.id) {
+                mapType = 'optimal';
+            } else if (alternativeMap && selectedMap === alternativeMap.id) {
+                mapType = 'alternative';
+            } else {
+                mapType = 'selected';
+            }
             selectMap(selectedMap);
             runMap();
             const map = game.global.mapsOwnedArray[getMapIndex(selectedMap)];
-            debug(`Running selected map ${prettifyMap(map)}`, "maps", 'th-large');
+            debug(`Running ${mapType} map ${prettifyMap(map)}`, "maps", 'th-large');
             lastMapWeWereIn = getCurrentMapObject();
             fragmentsNeeded = 0;
         } else {
-            devDebug(debugCtx, 'Trying to design a map');
             const prevFragmentsNeeded = fragmentsNeeded;
-            let shouldBuyMap, bestMod, highestMapCost;
             const currentMap = (optimalMap || alternativeMap);
-            if (!configureMapSliders(customVars, optimalMapLvl)) {
+            const mapType = (optimalMap ? 'optimal' : 'alternative');
+            let shouldBuyMap, bestMod, highestMapCost;
+            devDebug(debugCtx, 'Trying to design a map', {
+                modsUnlocked: modsUnlocked, AdvMapSpecialModifier: getPageSetting('AdvMapSpecialModifier'),
+                currentMap: debugPrettifyMap(currentMap),
+            }, '=', true);
+            if (!configureMapSliders(customVars, minMapLvl)) {
                 // Can't afford a map even with the worst slider values
                 shouldBuyMap = false;
             } else {
                 if (modsUnlocked && getPageSetting('AdvMapSpecialModifier')) {
-                    let modPool;
-                    if (farming) {
-                        modPool = farmingMapMods;
-                    } else if (gettingPrestige) {
-                        modPool = prestigeMapMods;
-                    } else {
-                        modPool = ['fa'];  // it's cheap anyway
-                    }
                     if (!currentMap) {
                         // we don't have a suitable map, so get any decent map to run
-                        const mapLevel = Math.min(optimalMapLvl, baseMapLvl);
                         if (farming) {
                             // prioritize caches for farming
                             bestMod = setAffordableMapMod(farmingMapMods);
-                            fragmentsNeeded = setAffordableMapLevel(mapLevel);
+                            fragmentsNeeded = setAffordableMapLevel(optimalMapLvl);
                         } else {
                             // otherwise, prioritize levels
-                            setAffordableMapLevel(mapLevel);
+                            setAffordableMapLevel(optimalMapLvl);
                             bestMod = setAffordableMapMod(modPool);
                             fragmentsNeeded = bestMod.cost;
                         }
                         shouldBuyMap = canAffordSelectedMap();
                     } else if (farming) {
-                        // for farming, a map bonus (LMC/HC/etc) is better than levels
-                        bestMod = maybeSetMapMod(farmingMapMods);
-                        if (getSelectedMapMod()) {
+                        // for farming, a map bonus (LMC/HC/etc) is better than extra levels
+                        bestMod = maybeSetBestMapMod(farmingMapMods);
+                        const selectedMod = getSelectedMapMod();
+                        if (selectedMod) {
                             // we got the best unlocked mod, now we can try to increase map levels
                             highestMapCost = setAffordableMapLevel(optimalMapLvl);
                             if (highestMapCost > game.resources.fragments.owned) {
@@ -1103,12 +1109,18 @@ function autoMap() {
                             // couldn't get the best mod, so no point in increasing levels
                             fragmentsNeeded = bestMod.cost;
                         }
-                        const gotBetterBonus = !currentMap.hasOwnProperty('bonus') && getSelectedMapMod();
-                        const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
-                        shouldBuyMap = canAffordSelectedMap() && gotBetterBonus && gotBetterLevel;
+                        const totalMapLevel = getSelectedMapLevel();
+                        const gotBetterBonus = !currentMap.hasOwnProperty('bonus') && selectedMod;
+                        const gotBetterLevel = totalMapLevel > currentMap.level;
+                        devDebug(debugCtx, 'Designed a map', {
+                            gotBetterBonus: gotBetterBonus, gotBetterLevel: gotBetterLevel,
+                            selectedMapMod: selectedMod, selectedMapLevel: totalMapLevel,
+                            bestModName: bestMod.mod, bestModCost: bestMod.cost
+                        }, '=', true);
+                        shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
                     } else {
                         // if not farming, we're getting prestige or map stacks. in this case prioritize levels over random mods
-                        setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
+                        setAffordableMapLevel(optimalMapLvl);
                         bestMod = setAffordableMapMod(modPool);
                         fragmentsNeeded = bestMod.cost;
                         const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
@@ -1119,28 +1131,28 @@ function autoMap() {
                 }
             }
 
-            const currentMod = getSelectedMapMod();
+            const selectedMod = getSelectedMapMod();
             const extraMapLevels = getExtraMapLevels();
-            const currentMapLevel = getSelectedMapLevel();
+            const totalMapLevel = getSelectedMapLevel();
             const mapCost = updateMapCost(true);
 
-            if (fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded) {
+            if (shouldBuyMap && fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded) {
                 const wanted = [(bestMod ? bestMod.mod : undefined),
-                    (currentMapLevel < optimalMapLvl ? `+${optimalMapLvl-currentMapLevel}lvl` : undefined)].filter(m => m).join(', ');
+                    (totalMapLevel < optimalMapLvl ? `+${optimalMapLvl-totalMapLevel}lvl` : undefined)].filter(m => m).join(', ');
                 debug(`Will recheck map upgrades when we have ${prettify(fragmentsNeeded)} fragments (want: ${wanted})`, "maps", 'th-large');
             }
 
             if (shouldBuyMap) {
                 const modMsgs = [];
-                if (currentMod) {
-                    modMsgs.push(mapSpecialModifierConfig[currentMod].name);
+                if (selectedMod) {
+                    modMsgs.push(mapSpecialModifierConfig[selectedMod].name);
                 }
                 if (extraMapLevels) {
                     modMsgs.push(`z+${extraMapLevels}`);
                 }
                 const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
                 const bonusMsg = (modMsgs.length > 0 ? `${modMsgs.join(', ')}` : 'no bonus');
-                debug(`Buying a map: Level ${currentMapLevel} (${bonusMsg}). Cost: ${ratio}% of your fragments (${prettify(mapCost)})`, "maps", 'th-large');
+                debug(`Buying a map: Level ${totalMapLevel} (${bonusMsg}). Cost: ${ratio}% of your fragments (${prettify(mapCost)})`, "maps", 'th-large');
 
                 var result = buyMap();
                 if (result === -2) {
@@ -1162,7 +1174,6 @@ function autoMap() {
                     debug("Failed to buy a map");
                 }
             } else if (currentMap) {
-                const mapType = (optimalMap ? 'optimal' : 'alternative');
                 selectMap(currentMap.id);
                 runMap();
                 if (lastMapWeWereIn !== getCurrentMapObject()) {
@@ -1172,7 +1183,7 @@ function autoMap() {
             } else {
                 // No fragments to create a decent map
                 selectMap(highestMap.id);
-                debug(`Can't afford the map we designed, Level ${currentMapLevel}`, "maps", '*crying2');
+                debug(`Can't afford the map we designed, Level ${totalMapLevel}`, "maps", '*crying2');
                 debug(`...selected our highest map instead: ${prettifyMap(highestMap)}`, "maps", '*happy2');
                 runMap();
                 lastMapWeWereIn = getCurrentMapObject();
