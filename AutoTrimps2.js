@@ -151,7 +151,7 @@ function mainLoop() {
         switch (document.getElementById('tipTitle').innerHTML) {
             case 'The Improbability':
             case 'Corruption':
-            case 'Spire':
+            case 'The Spire':
             case 'The Magma':
                 cancelTooltip();
         }
