@@ -2,8 +2,10 @@ var wantToScry = false;
 var transitionRequired = false;
 
 function scryingCorruption() {
-    var maxZoneOK = game.global.world < getPageSetting('ScryerMaxZone') || getPageSetting('ScryerMaxZone') < 1 || getPageSetting('onlyminmaxworld') >= 3;
-    var scryZone = game.global.world >= getPageSetting('ScryerMinZone') && maxZoneOK;
+    //Defines if it should be scrying vs corrupted enemies at this moment
+    var minZoneOK = game.global.world >= getPageSetting('ScryerMinZone');
+    var maxZoneOK = game.global.world < getPageSetting('ScryerMaxZone') || getPageSetting('ScryerMaxZone') < 1;
+    var scryZone = minZoneOK && maxZoneOK || getPageSetting('onlyminmaxworld') >= 2;
     var scryCorrupt = scryZone && getPageSetting('ScryerSkipCorrupteds2') != 0 || getPageSetting('ScryerSkipCorrupteds2') == 1;
     var essenceLeft = getPageSetting('screwessence') == false || countRemainingEssenceDrops() >= 1;
     var die = getPageSetting('ScryerDieZ') != -1 && game.global.world >= getPageSetting('ScryerDieZ')
