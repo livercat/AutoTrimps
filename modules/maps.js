@@ -1105,7 +1105,7 @@ function autoMap() {
                         }
                         const gotBetterBonus = !currentMap.hasOwnProperty('bonus') && getSelectedMapMod();
                         const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
-                        shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
+                        shouldBuyMap = canAffordSelectedMap() && gotBetterBonus && gotBetterLevel;
                     } else {
                         // if not farming, we're getting prestige or map stacks. in this case prioritize levels over random mods
                         setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
