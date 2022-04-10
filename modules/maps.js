@@ -1053,10 +1053,10 @@ function autoMap() {
             mapsClicked();
         } else if (!tryCrafting) {
             let mapType;
-            if (selectedMap === optimalMap.id) {
+            if (optimalMap && selectedMap === optimalMap.id) {
                 mapType = 'optimal';
-            } else if (selectedMap === alternativeMap.id) {
-                mapType = 'alternativeMap';
+            } else if (alternativeMap && selectedMap === alternativeMap.id) {
+                mapType = 'alternative';
             } else {
                 mapType = 'selected';
             }
