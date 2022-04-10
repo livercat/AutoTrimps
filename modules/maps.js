@@ -754,8 +754,8 @@ function autoMap() {
     }
 
     // Farms on "Oneshot level" + 1, except on magma or in Coordinated challenge
-    var extraConditions = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming);
-    if (extraConditions && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active() && optimalMapLvl < baseMapLvl) {
+    var extraConditions = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || needPrestige);
+    if (extraConditions && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
         optimalMapLvl++;
     }
 
@@ -1082,14 +1082,13 @@ function autoMap() {
                 if (modsUnlocked && getPageSetting('AdvMapSpecialModifier')) {
                     if (!currentMap) {
                         // we don't have a suitable map, so get any decent map to run
-                        const mapLevel = Math.min(optimalMapLvl, baseMapLvl);
                         if (farming) {
                             // prioritize caches for farming
                             bestMod = setAffordableMapMod(farmingMapMods);
-                            fragmentsNeeded = setAffordableMapLevel(mapLevel);
+                            fragmentsNeeded = setAffordableMapLevel(optimalMapLvl);
                         } else {
                             // otherwise, prioritize levels
-                            setAffordableMapLevel(mapLevel);
+                            setAffordableMapLevel(optimalMapLvl);
                             bestMod = setAffordableMapMod(modPool);
                             fragmentsNeeded = bestMod.cost;
                         }
@@ -1121,7 +1120,7 @@ function autoMap() {
                         shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
                     } else {
                         // if not farming, we're getting prestige or map stacks. in this case prioritize levels over random mods
-                        setAffordableMapLevel(Math.min(optimalMapLvl, baseMapLvl));
+                        setAffordableMapLevel(optimalMapLvl);
                         bestMod = setAffordableMapMod(modPool);
                         fragmentsNeeded = bestMod.cost;
                         const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
