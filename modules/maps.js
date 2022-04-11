@@ -457,8 +457,7 @@ function getMapRatio(map, customLevel, customDiff) {
     return Math.max(mapDmg, mapHp);
 }
 
-//TODO Improve Map Score when comparing Prestige Maps
-function getMapScore(map, modPool, onlyBestMod) {
+function getMapScore(map, modPool) {
     // this function is used when comparing crafted maps - the greater result means a better map
     if (!map) {
         return [-1, -1];
