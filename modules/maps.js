@@ -716,28 +716,32 @@ function autoMap() {
         shouldDoSpireMaps = true;
     }
 
-    //Map Bonus
+    // Map Bonus
     const maxMapBonusZ = getPageSetting('MaxMapBonusAfterZone');
     doMaxMapBonus = (maxMapBonusZ >= 0 && game.global.mapBonus < getPageSetting("MaxMapBonuslimit") && game.global.world >= maxMapBonusZ);
     if (doMaxMapBonus) shouldDoMaps = true;
 
-    const needMetal = (!enoughHealth || !enoughDamage);
-    const gettingPrestige = (!needMetal && needPrestige);
+    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
+    const needMetal = (!enoughHealth || !enoughDamage) && !needPrestige;
+
     const hze = getHighestLevelCleared();
     const modsUnlocked = hze >= 59;
     const haveMapReducer = game.talents.mapLoot.purchased;
+
     let modPool = ['fa'];  // cheap fallback
     let minMapLvl = game.global.world - game.portal.Siphonology.level;
     let baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery;
-    if (needMetal) {
-        modPool = farmingMapMods;
-        minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
-    } else if (gettingPrestige) {
+    if (needPrestige) {
         modPool = prestigeMapMods;
         minMapLvl = game.global.world;
         baseMapLvl = game.global.world;
+    } else if (farming || needMetal) {
+        modPool = farmingMapMods;
+        if (farming) {
+            minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
+        }
     }
-    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze)
+    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze); // discard still locked mods
 
     // Calculate Siphonology and Extra Map Levels
     let optimalMapLvl = Math.max(minMapLvl, 6);
@@ -768,11 +772,13 @@ function autoMap() {
             optimalMapLvl--;
         }
     }
-
-    // Farms on "Oneshot level" + 1, except on magma or in Coordinated challenge
-    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || needPrestige);
-    if (farming && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
+    if ((farming || needPrestige) && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
+        // Prefer "Oneshot level" + 1, except on magma or in Coordinated challenge
         optimalMapLvl++;
+    }
+    if (needPrestige) {
+        // we need at least world level to get prestiges
+        optimalMapLvl = Math.max(optimalMapLvl, game.global.world);
     }
 
     let optimalMap = null;
@@ -1046,7 +1052,7 @@ function autoMap() {
             selectedMap: selectedMap,
             tryCrafting: tryCrafting,
             needMetal: needMetal,
-            gettingPrestige: gettingPrestige,
+            needPrestige: needPrestige,
             fragmentsNeeded: prettify(fragmentsNeeded)
         }, '=', true);
 
