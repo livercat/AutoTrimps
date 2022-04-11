@@ -1136,7 +1136,7 @@ function autoMap() {
             const totalMapLevel = getSelectedMapLevel();
             const mapCost = updateMapCost(true);
 
-            if (shouldBuyMap && fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded) {
+            if (shouldBuyMap && fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded && fragmentsNeeded > game.resources.fragments.owned) {
                 const wanted = [(bestMod ? bestMod.mod : undefined),
                     (totalMapLevel < optimalMapLvl ? `+${optimalMapLvl-totalMapLevel}lvl` : undefined)].filter(m => m).join(', ');
                 debug(`Will recheck map upgrades when we have ${prettify(fragmentsNeeded)} fragments (want: ${wanted})`, "maps", 'th-large');
