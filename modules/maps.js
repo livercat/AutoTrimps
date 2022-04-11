@@ -457,17 +457,21 @@ function getMapRatio(map, customLevel, customDiff) {
     return Math.max(mapDmg, mapHp);
 }
 
-function getMapScore(map, modPool) {
+function getMapScore(map, modPool, prioritizeMods) {
     // this function is used when comparing crafted maps - the greater result means a better map
     if (!map) {
         return [-1, -1];
     }
     // mod pools are ordered from best to worst, so we invert the index to get the score
     const modScore = (modPool.length - (modPool.includes(map.bonus) ? modPool.indexOf(map.bonus) : 999));
-    return [map.level, modScore];
+    if (prioritizeMods) {
+        return [modScore, map.level]
+    } else {
+        return [map.level, modScore];
+    }
 }
 
-function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel) {
+function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel, prioritizeMods) {
     // disqualify some maps right away
     const maps = [map1, map2].filter(m => (m && m.level >= minLevel && m.level <= maxLevel));
     if (!maps) {
@@ -476,7 +480,7 @@ function selectBetterCraftedMap(map1, map2, modPool, minLevel, maxLevel) {
         return maps[0];
     }
     // select a new map if it's strictly better
-    if (getMapScore(map2, modPool) > getMapScore(map1, modPool)) {
+    if (getMapScore(map2, modPool, prioritizeMods) > getMapScore(map1, modPool, prioritizeMods)) {
         return map2;
     } else {
         return map1;
@@ -630,7 +634,7 @@ function autoMap() {
     }
 
     //H:D Calc
-    var ourBaseDamage = calcOurDmg("avg", "X");
+    let ourBaseDamage = calcOurDmg("avg", "X");
 
     //Shield Calc
     highDamageShield();
@@ -645,8 +649,8 @@ function autoMap() {
     updateAutoMapsStatus();
 
     //Farming
-    var selectedMap = "world";
-    var shouldFarmLowerZone = false;
+    let selectedMap = "world";
+    let shouldFarmLowerZone = false;
 
     //Farm Flags
     shouldFarm = false;
@@ -666,7 +670,7 @@ function autoMap() {
     if (ourBaseDamage > 0) {
         shouldDoMaps = (!enoughDamage || shouldFarm || scryerStuck);
     }
-    var shouldDoHealthMaps = false;
+    let shouldDoHealthMaps = false;
     if (game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') && !shouldFarm)
         shouldDoMaps = false;
     else if (game.global.mapBonus >= getPageSetting('MaxMapBonuslimit') && shouldFarm)
@@ -675,7 +679,7 @@ function autoMap() {
         shouldDoMaps = true;
         shouldDoHealthMaps = true;
     }
-    var restartVoidMap = false;
+    let restartVoidMap = false;
     if (game.global.challengeActive == 'Nom' && getPageSetting('FarmWhenNomStacks7')) {
         if (game.global.gridArray[99].nomStacks > customVars.NomFarmStacksCutoff[0]) {
             if (game.global.mapBonus != getPageSetting('MaxMapBonuslimit'))
@@ -704,7 +708,7 @@ function autoMap() {
     }
 
     //Spire
-    var shouldDoSpireMaps = false;
+    let shouldDoSpireMaps = false;
     preSpireFarming = (isActiveSpireAT() || disActiveSpireAT()) && (spireTime = (new Date().getTime() - game.global.zoneStarted) / 1000 / 60) < getPageSetting('MinutestoFarmBeforeSpire');
     spireMapBonusFarming = getPageSetting('MaxStacksForSpire') && (isActiveSpireAT() || disActiveSpireAT()) && game.global.mapBonus < 10;
     if (preSpireFarming || spireMapBonusFarming) {
@@ -713,28 +717,25 @@ function autoMap() {
     }
 
     //Map Bonus
-    var maxMapBonusZ = getPageSetting('MaxMapBonusAfterZone');
+    const maxMapBonusZ = getPageSetting('MaxMapBonusAfterZone');
     doMaxMapBonus = (maxMapBonusZ >= 0 && game.global.mapBonus < getPageSetting("MaxMapBonuslimit") && game.global.world >= maxMapBonusZ);
     if (doMaxMapBonus) shouldDoMaps = true;
 
-    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
-    const gettingPrestige = (!farming && needPrestige);
+    const needMetal = (!enoughHealth || !enoughDamage);
+    const gettingPrestige = (!needMetal && needPrestige);
     const hze = getHighestLevelCleared();
     const modsUnlocked = hze >= 59;
     const haveMapReducer = game.talents.mapLoot.purchased;
-    let modPool, minMapLvl, baseMapLvl;
-    if (farming) {
+    let modPool = ['fa'];  // cheap fallback
+    let minMapLvl = game.global.world - game.portal.Siphonology.level;
+    let baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery;
+    if (needMetal) {
         modPool = farmingMapMods;
         minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
-        baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery
     } else if (gettingPrestige) {
         modPool = prestigeMapMods;
         minMapLvl = game.global.world;
         baseMapLvl = game.global.world;
-    } else {
-        modPool = ['fa'];  // cheap fallback
-        minMapLvl = game.global.world - game.portal.Siphonology.level;
-        baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery
     }
     modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze)
 
@@ -769,8 +770,8 @@ function autoMap() {
     }
 
     // Farms on "Oneshot level" + 1, except on magma or in Coordinated challenge
-    var extraConditions = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || needPrestige);
-    if (extraConditions && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
+    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || needPrestige);
+    if (farming && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
         optimalMapLvl++;
     }
 
@@ -782,9 +783,10 @@ function autoMap() {
         if (!map.noRecycle) {
             if (!optimalMap) {
                 if (map.level === optimalMapLvl && map.bonus === modPool[0]) {
-                    optimalMap = selectBetterCraftedMap(optimalMap, map, modPool.slice(0), minMapLvl, optimalMapLvl);
+                    // the best map we can possibly run, no need to craft anything else
+                    optimalMap = selectBetterCraftedMap(optimalMap, map, modPool, minMapLvl, optimalMapLvl, needMetal);
                 } else {
-                    alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1);
+                    alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1, needMetal);
                 }
             }
             if (!highestMap || map.level > highestMap.level) {
@@ -976,7 +978,6 @@ function autoMap() {
             //Health Farming
             if (shouldDoHealthMaps && game.global.mapBonus >= getPageSetting('MaxMapBonushealth') - 1) {
                 repeatClicked();
-                shouldDoHealthMaps = false;
             }
 
             //Damage Farming
@@ -1044,7 +1045,7 @@ function autoMap() {
             lowestMap: debugPrettifyMap(lowestMap),
             selectedMap: selectedMap,
             tryCrafting: tryCrafting,
-            farming: farming,
+            needMetal: needMetal,
             gettingPrestige: gettingPrestige,
             fragmentsNeeded: prettify(fragmentsNeeded)
         }, '=', true);
@@ -1082,7 +1083,7 @@ function autoMap() {
                 if (modsUnlocked && getPageSetting('AdvMapSpecialModifier')) {
                     if (!currentMap) {
                         // we don't have a suitable map, so get any decent map to run
-                        if (farming) {
+                        if (needMetal) {
                             // prioritize caches for farming
                             bestMod = setAffordableMapMod(farmingMapMods);
                             fragmentsNeeded = setAffordableMapLevel(optimalMapLvl);
@@ -1093,7 +1094,7 @@ function autoMap() {
                             fragmentsNeeded = bestMod.cost;
                         }
                         shouldBuyMap = canAffordSelectedMap();
-                    } else if (farming) {
+                    } else if (needMetal) {
                         // for farming, a map bonus (LMC/HC/etc) is better than extra levels
                         bestMod = maybeSetBestMapMod(farmingMapMods);
                         const selectedMod = getSelectedMapMod();
@@ -1110,8 +1111,12 @@ function autoMap() {
                             fragmentsNeeded = bestMod.cost;
                         }
                         const totalMapLevel = getSelectedMapLevel();
-                        const gotBetterBonus = !currentMap.hasOwnProperty('bonus') && selectedMod;
                         const gotBetterLevel = totalMapLevel > currentMap.level;
+                        let gotBetterBonus = modPool.includes(selectedMod) && !modPool.includes(currentMap.bonus);
+                        if (!gotBetterBonus && currentMap.level === optimalMapLvl) {
+                            // if we can't get better level, bonus improvement is fine
+                            gotBetterBonus = modPool.index(selectedMod) < modPool.index(currentMap.bonus);
+                        }
                         devDebug(debugCtx, 'Designed a map', {
                             gotBetterBonus: gotBetterBonus, gotBetterLevel: gotBetterLevel,
                             selectedMapMod: selectedMod, selectedMapLevel: totalMapLevel,
@@ -1136,7 +1141,7 @@ function autoMap() {
             const totalMapLevel = getSelectedMapLevel();
             const mapCost = updateMapCost(true);
 
-            if (shouldBuyMap && fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded && fragmentsNeeded > game.resources.fragments.owned) {
+            if (fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded && fragmentsNeeded > game.resources.fragments.owned) {
                 const wanted = [(bestMod ? bestMod.mod : undefined),
                     (totalMapLevel < optimalMapLvl ? `+${optimalMapLvl-totalMapLevel}lvl` : undefined)].filter(m => m).join(', ');
                 debug(`Will recheck map upgrades when we have ${prettify(fragmentsNeeded)} fragments (want: ${wanted})`, "maps", 'th-large');
