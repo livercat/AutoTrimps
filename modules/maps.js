@@ -1115,7 +1115,7 @@ function autoMap() {
                         let gotBetterBonus = modPool.includes(selectedMod) && !modPool.includes(currentMap.bonus);
                         if (!gotBetterBonus && currentMap.level === optimalMapLvl) {
                             // if we can't get better level, bonus improvement is fine
-                            gotBetterBonus = modPool.index(selectedMod) < modPool.index(currentMap.bonus);
+                            gotBetterBonus = modPool.indexOf(selectedMod) < modPool.indexOf(currentMap.bonus);
                         }
                         devDebug(debugCtx, 'Designed a map', {
                             gotBetterBonus: gotBetterBonus, gotBetterLevel: gotBetterLevel,
