@@ -830,7 +830,7 @@ function autoMap() {
         var tryBionicSniper = !game.achievements.oneOffs.finished[42] && (110 + 15*bionicMaxLevel) >= game.global.world + 45;
         if (bionicPool.length > 0 && (bionicMaxLevel > game.global.roboTrimpLevel || tryBionicSniper)) {
             var bionicLevel = Math.min(bionicPool.length, bionicMaxLevel);
-            if (bionicLevel > 0) selectedMap = bionicPool[bionicLevel-1].id;
+            if (bionicLevel > 0 && bionicPool[bionicLevel-1]) selectedMap = bionicPool[bionicLevel-1].id;
             //debug("Selected Bionic Level " + bionicLevel + " resulting in map id " + selectedMap);
         }
     }
