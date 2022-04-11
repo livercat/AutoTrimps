@@ -457,8 +457,7 @@ function getMapRatio(map, customLevel, customDiff) {
     return Math.max(mapDmg, mapHp);
 }
 
-//TODO Improve Map Score when comparing Prestige Maps
-function getMapScore(map, modPool, onlyBestMod) {
+function getMapScore(map, modPool) {
     // this function is used when comparing crafted maps - the greater result means a better map
     if (!map) {
         return [-1, -1];
@@ -718,32 +717,47 @@ function autoMap() {
     doMaxMapBonus = (maxMapBonusZ >= 0 && game.global.mapBonus < getPageSetting("MaxMapBonuslimit") && game.global.world >= maxMapBonusZ);
     if (doMaxMapBonus) shouldDoMaps = true;
 
-    //Calculates Siphonology and Extra Map Levels
-    const highestZ = getHighestLevelCleared();
+    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
+    const gettingPrestige = (!farming && needPrestige);
+    const hze = getHighestLevelCleared();
+    const modsUnlocked = hze >= 59;
     const haveMapReducer = game.talents.mapLoot.purchased;
-    const minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
-    const baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery
-    let optimalMapLvl = Math.max(minMapLvl, 6);
+    let modPool, minMapLvl, baseMapLvl;
+    if (farming) {
+        modPool = farmingMapMods;
+        minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
+        baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery
+    } else if (gettingPrestige) {
+        modPool = prestigeMapMods;
+        minMapLvl = game.global.world;
+        baseMapLvl = game.global.world;
+    } else {
+        modPool = ['fa'];  // cheap fallback
+        minMapLvl = game.global.world - game.portal.Siphonology.level;
+        baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery
+    }
+    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze)
 
-    //If enabled, then
+    // Calculate Siphonology and Extra Map Levels
+    let optimalMapLvl = Math.max(minMapLvl, 6);
     if (getPageSetting('DynamicSiphonology') || shouldFarmLowerZone) {
-        //For each Map Level we can go below our current zone...
+        // For each Map Level we can go below our current zone...
         for (optimalMapLvl; optimalMapLvl < baseMapLvl; optimalMapLvl++) {
-            //Calc our Damage on this map
+            // Calc our Damage on this map
             let ratio = calcHDRatio(optimalMapLvl, "map");
             if (game.unlocks.imps.Titimp) ratio /= 2;
 
-            //Farms on Scryer if available, or Dominance, or just X
-            if (game.global.world >= 60 && highestZ >= 180) ratio *= 2;
+            // Farm on Scryer if available, or Dominance, or just X
+            if (game.global.world >= 60 && hze >= 180) ratio *= 2;
             else if (game.upgrades.Dominance.done) ratio /= 4;
 
-            //Stop increasing map level once we get to the right ratio. We use 1.2 here because created maps are usually shorter and easier
+            // Stop increasing map level once we get to the right ratio
             if (game.global.world <= 40 && ratio > 1.5) break;
             if (ratio > 1.2) break;
         }
 
         // Keep increasing map level while we can overkill in that map
-        if (MODULES.maps.shouldFarmHigherZone && highestZ >= 209 && optimalMapLvl === baseMapLvl) {
+        if (MODULES.maps.shouldFarmHigherZone && hze >= 209 && optimalMapLvl === baseMapLvl) {
             while (oneShotZone("S", "map", optimalMapLvl+1) === maxOneShotPower()) {
                 optimalMapLvl++;
             }
@@ -760,41 +774,14 @@ function autoMap() {
         optimalMapLvl++;
     }
 
-    const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
-    const gettingPrestige = (!farming && needPrestige);
-    const modsUnlocked = game.global.highestLevelCleared >= 59;
-    const hze = game.global.highestLevelCleared;
-    let modPool;
-    if (farming) {
-        modPool = farmingMapMods;
-    } else if (gettingPrestige) {
-        modPool = prestigeMapMods;
-    } else {
-        modPool = ['fa'];  // cheap fallback
-    }
-    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze)
-
     let optimalMap = null;
     let alternativeMap = null;
     let highestMap = null;
     let lowestMap = null;
-
     for (const map of game.global.mapsOwnedArray) {
         if (!map.noRecycle) {
             if (!optimalMap) {
-                if (gettingPrestige) {
-                    //Makes sure all maps above the current zone are valid
-                    var maxPrestigeLevel = Math.max(game.global.world, optimalMapLvl + 1);
-
-                    //Optimal: z+0 (P)
-                    if (map.level === game.global.world && map.bonus === modPool[0])
-                        optimalMap = selectBetterCraftedMap(optimalMap, map, modPool.slice(0), minMapLvl, game.global.world);
-
-                    //Prestige requires at least z+0
-                    else if (map.level >= game.global.world)
-                        alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, maxPrestigeLevel);
-                }
-                else if (map.level === optimalMapLvl && map.bonus === modPool[0]) {
+                if (map.level === optimalMapLvl && map.bonus === modPool[0]) {
                     optimalMap = selectBetterCraftedMap(optimalMap, map, modPool.slice(0), minMapLvl, optimalMapLvl);
                 } else {
                     alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1);
