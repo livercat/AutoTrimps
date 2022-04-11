@@ -457,6 +457,7 @@ function getMapRatio(map, customLevel, customDiff) {
     return Math.max(mapDmg, mapHp);
 }
 
+//TODO Improve Map Score when comparing Prestige Maps
 function getMapScore(map, modPool, onlyBestMod) {
     // this function is used when comparing crafted maps - the greater result means a better map
     if (!map) {
@@ -781,7 +782,19 @@ function autoMap() {
     for (const map of game.global.mapsOwnedArray) {
         if (!map.noRecycle) {
             if (!optimalMap) {
-                if (map.level === optimalMapLvl && map.bonus === modPool[0]) {
+                if (gettingPrestige) {
+                    //Makes sure all maps above the current zone are valid
+                    var maxPrestigeLevel = Math.max(game.global.world, optimalMapLvl + 1);
+
+                    //Optimal: z+0 (P)
+                    if (map.level === game.global.world && map.bonus === modPool[0])
+                        optimalMap = selectBetterCraftedMap(optimalMap, map, modPool.slice(0), minMapLvl, game.global.world);
+
+                    //Prestige requires at least z+0
+                    else if (map.level >= game.global.world)
+                        alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, maxPrestigeLevel);
+                }
+                else if (map.level === optimalMapLvl && map.bonus === modPool[0]) {
                     optimalMap = selectBetterCraftedMap(optimalMap, map, modPool.slice(0), minMapLvl, optimalMapLvl);
                 } else {
                     alternativeMap = selectBetterCraftedMap(alternativeMap, map, modPool, minMapLvl, optimalMapLvl + 1);
@@ -1115,7 +1128,7 @@ function autoMap() {
                         devDebug(debugCtx, 'Designed a map', {
                             gotBetterBonus: gotBetterBonus, gotBetterLevel: gotBetterLevel,
                             selectedMapMod: selectedMod, selectedMapLevel: totalMapLevel,
-                            bestModName: bestMod.mod, bestModCost: prettify(bestMod.cost)
+                            bestModName: bestMod.mod, bestModCost: bestMod.cost
                         }, '=', true);
                         shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
                     } else {
