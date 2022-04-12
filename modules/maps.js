@@ -1138,7 +1138,8 @@ function autoMap() {
                         shouldBuyMap = canAffordSelectedMap() && gotBetterLevel;
                     }
                 } else {
-                    shouldBuyMap = canAffordSelectedMap();
+                    const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
+                    shouldBuyMap = canAffordSelectedMap() && gotBetterLevel;
                 }
             }
 
