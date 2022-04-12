@@ -46,6 +46,7 @@ var fragmentsNeeded = 0;
 // mods are from best to worst
 const farmingMapMods = ["lmc", "hc", "smc", "lc", "fa"];
 const prestigeMapMods = ["p", "fa"];
+const defaultMapMods = ["fa"];
 
 const uniqueMaps = {
     'The Block': {
@@ -194,21 +195,21 @@ function updateAutoMapsStatus(get) {
     }
 }
 
-function configureMapSliders(customVars, minLevel) {
+function configureMapSliders(minLevel) {
     document.getElementById("mapLevelInput").value = minLevel;
 
     let decrement, tier;
-    if (game.global.world >= customVars.MapTierZone[0]) {
-        tier = customVars.MapTier0Sliders;
+    if (game.global.world >= MODULES.maps.MapTierZone[0]) {
+        tier = MODULES.maps.MapTier0Sliders;
         decrement = [];
-    } else if (game.global.world >= customVars.MapTierZone[1]) {
-        tier = customVars.MapTier1Sliders;
+    } else if (game.global.world >= MODULES.maps.MapTierZone[1]) {
+        tier = MODULES.maps.MapTier1Sliders;
         decrement = ['loot'];
-    } else if (game.global.world >= customVars.MapTierZone[2]) {
-        tier = customVars.MapTier2Sliders;
+    } else if (game.global.world >= MODULES.maps.MapTierZone[2]) {
+        tier = MODULES.maps.MapTier2Sliders;
         decrement = ['loot'];
     } else {
-        tier = customVars.MapTier3Sliders;
+        tier = MODULES.maps.MapTier3Sliders;
         decrement = ['diff', 'loot'];
     }
 
@@ -218,10 +219,11 @@ function configureMapSliders(customVars, minLevel) {
     adjustMap('difficulty', tier[1]);
     lootAdvMapsRange.value = tier[2];
     adjustMap('loot', tier[2]);
+    const mapBiome = getPageSetting('mapselection');
     if (shouldFarm || game.global.challengeActive === 'Metal') {
         biomeAdvMapsSelect.value = game.global.decayDone ? "Plentiful" : "Mountain";
     } else {
-        biomeAdvMapsSelect.value = autoTrimpSettings.mapselection.selected === "Gardens" ? (game.global.decayDone ? "Plentiful" : "Random") : autoTrimpSettings.mapselection.selected;
+        biomeAdvMapsSelect.value = mapBiome === "Gardens" ? (game.global.decayDone ? "Plentiful" : "Random") : mapBiome;
     }
     updateMapCost();
     if (updateMapCost(true) > game.resources.fragments.owned) {
@@ -251,114 +253,104 @@ function configureMapSliders(customVars, minLevel) {
     return canAffordSelectedMap();
 }
 
-function maybeSetBestMapMod(modPool) {
+function setBestMapMod(modPool) {
     // chooses the best map mod from the pool that we have unlocked, and sets crafting selector to its value
-    // if we can't afford the resulting map, resets the selector to "no bonus"
-    const modSelector = document.getElementById("advSpecialSelect");
-    if (!modSelector) {
-        // cannot choose mods for some reason
-        return {mod: undefined, cost: 0};
-    }
+
     const targetMod = (modPool.length ? modPool[0] : undefined);
     if (!targetMod) {
         // no relevant mods unlocked
-        return {mod: undefined, cost: 0};
+        return false;
     }
-    // Check if we can afford the chosen mod
-    modSelector.value = targetMod;
-    const mapCost = updateMapCost(true);
-    if (mapCost > game.resources.fragments.owned) {
-        // can't afford it - reset the selector to "no bonus"
-        modSelector.value = '0';
+    const modSelector = document.getElementById("advSpecialSelect");
+    if (modSelector) {
+        modSelector.value = targetMod;
+        return true;
     }
-    return {mod: targetMod, cost: mapCost};
 }
 
 function setAffordableMapMod(modPool) {
     // tries to set every unlocked mod from the pool until it hits the first one we can afford
+    // returns the cost of the best available mod
     const modSelector = document.getElementById("advSpecialSelect");
     if (!modSelector) {
         // cannot choose mods for some reason
-        return {mod: undefined, cost: 0};
+        return 0;
     }
-    let bestModCost, bestMod;
+    let bestModCost = 0;
     for (const modName of modPool) {
         modSelector.value = modName;
-        const mapCost = updateMapCost(true);
-        if (bestMod === undefined) {
-            bestMod = modName;
-            bestModCost = mapCost;
-        }
-        if (mapCost <= game.resources.fragments.owned) {
+        bestModCost = Math.max(bestModCost, updateMapCost(true));
+        if (updateMapCost(true) <= game.resources.fragments.owned) {
             // found an affordable mod
-            break;
+            return bestModCost;
         }
     }
-
-    if (updateMapCost(true) > game.resources.fragments.owned) {
-        // can't afford any mod - reset the selector to "no bonus"
-        modSelector.value = '0';
-    }
-
-    return {mod: bestMod, cost: bestModCost};
+    // can't afford any mod - reset the selector to "no bonus"
+    modSelector.value = '0';
+    return bestModCost;
 }
 
-
-function setAffordableMapLevel(maxLevel) {
-    const extraLevelsSelector = document.getElementById('advExtraLevelSelect');
-    if (!extraLevelsSelector) {
-        // cannot increase levels for some reason
-        return getExtraMapLevels();
-    }
+function setAffordableMapLevel(minLevel, maxLevel, onlyBaseLevel) {
     const z = game.global.world;
-    const baseMapLevel = Math.min(z, maxLevel);
+    if (minLevel > maxLevel) {
+        return;
+    }
 
-    // first max out the base map level
-    let mapCost = 0;
-    const $mapLevelInput = document.getElementById("mapLevelInput");
-    while (parseInt($mapLevelInput.value) < baseMapLevel) {
-        mapCost = updateMapCost(true);
-        if (mapCost <= game.resources.fragments.owned) {
-            $mapLevelInput.value++
+    // first max out the base map level (it's capped by the current world zone)
+    const targetBaseLevel = Math.min(z, maxLevel);
+    const $baseLevel = document.getElementById("mapLevelInput");
+    $baseLevel.value = Math.min(z, minLevel);
+    while (parseInt($baseLevel.value) < targetBaseLevel) {
+        if (updateMapCost(true) <= game.resources.fragments.owned) {
+            $baseLevel.value++
         } else {
             break;
         }
     }
     // if we can't afford current level, decrement it to the previous (affordable) value
-    mapCost = updateMapCost(true);
-    if (mapCost > game.resources.fragments.owned && parseInt($mapLevelInput.value) > 6) {
-        $mapLevelInput.value--;
+    let mapCost = updateMapCost(true);
+    if (mapCost > game.resources.fragments.owned && parseInt($baseLevel.value) > 6) {
+        $baseLevel.value--;
     }
-    if (parseInt($mapLevelInput.value) < baseMapLevel) {
+    if (onlyBaseLevel) {
+        // all done
+        return mapCost;
+    }
+    if (parseInt($baseLevel.value) < targetBaseLevel) {
         // didn't even get to the base level, so no point in trying extra levels
         return mapCost;
     }
 
-    // try to get extra map levels
+    // try to increase map levels
+    const $extraLevel = document.getElementById('advExtraLevelSelect');
+    if (!$extraLevel) {
+        // cannot increase levels for some reason
+        return mapCost;
+    }
+    $extraLevel.value = Math.min(10, (minLevel > targetBaseLevel ? minLevel - targetBaseLevel : 0));
     while ((z + getExtraMapLevels()) < maxLevel && getExtraMapLevels() < 10) {
-        mapCost = updateMapCost(true);
-        if (mapCost <= game.resources.fragments.owned) {
-            extraLevelsSelector.value++;
+        if (updateMapCost(true) <= game.resources.fragments.owned) {
+            $extraLevel.value++;
         } else {
             break;
         }
     }
     mapCost = updateMapCost(true);
     // if we can't afford current level, decrement it to the previous (affordable) value
-    while (getExtraMapLevels() > 0 && mapCost > game.resources.fragments.owned) {
-        extraLevelsSelector.value--;
+    if (getExtraMapLevels() > 0 && mapCost > game.resources.fragments.owned) {
+        $extraLevel.value--;
     }
     return mapCost;
 }
 
-function getSelectedMapMod() {
+function getDesignedMapMod() {
     const selector = document.getElementById("advSpecialSelect");
     if (selector && selector.value !== '0') {
         return selector.value;
     }
 }
 
-function getSelectedMapLevel() {
+function getDesignedMapLevel() {
     const selector = document.getElementById("mapLevelInput");
     if (selector) {
         return parseInt(selector.value) + getExtraMapLevels();
@@ -367,6 +359,135 @@ function getSelectedMapLevel() {
 
 function canAffordSelectedMap() {
     return updateMapCost(true) <= game.resources.fragments.owned;
+}
+
+const mapModPriority = Object.freeze({
+   levels: 'Prioritize levels',
+   mods: 'Prioritize mods'
+});
+
+function designMap(ctx, currentMap, minMapLvl, optimalMapLvl, allowMods, modPool, priority=mapModPriority.levels) {
+    /**
+     * @param {Object} currentMap : the map object for the best crafted map we currently own.
+     * @param {int} minMapLvl : minimum allowed map level.
+     * @param {int} optimalMapLvl : the best map level.
+     * @param {boolean} allowMods : "true" if we can set map bonus and extra levels.
+     * @param {array} modPool : allowed map bonuses.
+     * @param {mapModPriority} priority : one of "mapModPriority.levels" or "mapModPriority.mods".
+     *
+     * @return {boolean} : true if we should buy the designed map.
+     */
+    devDebug(ctx, 'Designing a map', {
+        minMapLvl: minMapLvl,
+        optimalMapLvl: optimalMapLvl,
+        allowMods: allowMods,
+        modPool: modPool,
+        priority: priority
+    }, '=', true);
+
+    if (!configureMapSliders(minMapLvl)) {
+        // Can't afford a map even with the worst slider values
+        fragmentsNeeded = updateMapCost(true);
+        return false;
+    }
+    if (!allowMods) {
+        // we can only vary the base map level
+        fragmentsNeeded = setAffordableMapLevel(minMapLvl, optimalMapLvl, true);
+        return canAffordSelectedMap() && (!currentMap || getDesignedMapLevel() > currentMap.level);
+    }
+    if (!currentMap) {
+        // we don't have a suitable map, so design any decent map to run
+        if (priority === mapModPriority.mods) {
+            setAffordableMapMod(modPool);
+            fragmentsNeeded = setAffordableMapLevel(minMapLvl, optimalMapLvl);
+        } else {
+            setAffordableMapLevel(minMapLvl, optimalMapLvl);
+            fragmentsNeeded = setAffordableMapMod(modPool);
+        }
+        return canAffordSelectedMap();
+    }
+    // since we have a decent current map, we can be picky about the new design
+    if (priority === mapModPriority.mods) {
+        // we absolutely need the best map mod
+        if (!setBestMapMod(modPool)) {
+            console.log('failed to select mod', modPool);
+            return false;
+        }
+        let minNewLevel;
+        if (currentMap.bonus === modPool[0]) {
+            // we already have the best mod, so we need a level upgrade
+            minNewLevel = currentMap.level + 1;
+        } else {
+            // we don't have the best mod, so levels don't matter
+            minNewLevel = minMapLvl;
+        }
+        // we got the required mod, now we can try to increase map levels
+        fragmentsNeeded = setAffordableMapLevel(minNewLevel, optimalMapLvl);
+        return canAffordSelectedMap() && getDesignedMapLevel() >= minNewLevel;
+    }
+    // prioritize levels over mods
+    const minNewLevel = currentMap.level + 1;
+    setAffordableMapLevel(minNewLevel, optimalMapLvl);
+    fragmentsNeeded = setAffordableMapMod(modPool);
+    return canAffordSelectedMap() && getDesignedMapLevel() >= minNewLevel;
+}
+
+function buyDesignedMap(mapToRecycle) {
+    const selectedMod = getDesignedMapMod();
+    const extraMapLevels = getExtraMapLevels();
+    const totalMapLevel = getDesignedMapLevel();
+    const mapCost = updateMapCost(true);
+
+    const modMsgs = [];
+    if (selectedMod) {
+        modMsgs.push(mapSpecialModifierConfig[selectedMod].name);
+    }
+    if (extraMapLevels) {
+        modMsgs.push(`z+${extraMapLevels}`);
+    }
+    const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
+    const bonusMsg = (modMsgs.length > 0 ? `${modMsgs.join(', ')}` : 'no bonus');
+    debug(`Buying a map: Level ${totalMapLevel} (${bonusMsg}). Cost: ${ratio}% of your fragments (${prettify(mapCost)})`, "maps", 'th-large');
+
+    var result = buyMap();
+    if (result === -2) {
+        debug("Too many maps, recycling all lower-level maps", "maps", 'th-large');
+        recycleBelow(true);
+        result = buyMap();
+        if (result === -2) {
+            if (mapToRecycle) {
+                debug("Still too many maps, recycling map of the lowest level");
+                recycleMap(mapToRecycle.id);
+                result = buyMap();
+                if (result !== -2) {
+                    return;
+                }
+            }
+        } else {
+            return;
+        }
+        debug("Failed to buy a map");
+    }
+}
+
+function getMapAdjective(mapId, optimalMap, alternativeMap) {
+    if (optimalMap && mapId === optimalMap.id) {
+        return 'optimal';
+    } else if (alternativeMap && mapId === alternativeMap.id) {
+        return 'alternative';
+    } else {
+        return 'selected';
+    }
+}
+
+function runSelectedMap(mapId, madAdjective) {
+    selectMap(mapId);
+    runMap();
+    if (lastMapWeWereIn !== getCurrentMapObject()) {
+        const map = game.global.mapsOwnedArray[getMapIndex(mapId)];
+        debug(`Running ${madAdjective} map ${prettifyMap(map)}`, "maps", 'th-large');
+        lastMapWeWereIn = getCurrentMapObject();
+    }
 }
 
 function getMapHealthCutOff(pure) {
@@ -519,7 +640,6 @@ function autoMap() {
     }
 
     //Vars
-    var customVars = MODULES["maps"];
     var prestige = autoTrimpSettings.Prestige.selected;
     var challSQ = game.global.runningChallengeSquared;
     const debugCtx = {
@@ -616,7 +736,7 @@ function autoMap() {
             if (game.upgrades[p].allowed - game.upgrades[p].done > 0)
                 numUnbought++;
         }
-        if (numUnbought >= customVars.SkipNumUnboughtPrestiges) {
+        if (numUnbought >= MODULES.maps.SkipNumUnboughtPrestiges) {
             needPrestige = false;
             skippedPrestige = true;
         }
@@ -626,7 +746,7 @@ function autoMap() {
     if ((needPrestige || skippedPrestige) && (getPageSetting('PrestigeSkip1_2') == 1 || getPageSetting('PrestigeSkip1_2') == 3)) {
         const prestigeList = ['Dagadder', 'Megamace', 'Polierarm', 'Axeidic', 'Greatersword', 'Harmbalest'];
         const numLeft = prestigeList.filter(prestige => game.mapUnlocks[prestige].last <= (game.global.world + extraMapLevels) - 5);
-        const shouldSkip = numLeft <= customVars.UnearnedPrestigesRequired;
+        const shouldSkip = numLeft <= MODULES.maps.UnearnedPrestigesRequired;
         if (shouldSkip != skippedPrestige) {
             needPrestige = !needPrestige;
             skippedPrestige = !skippedPrestige;
@@ -649,7 +769,7 @@ function autoMap() {
     updateAutoMapsStatus();
 
     //Farming
-    let selectedMap = "world";
+    let selectedMapId = "world";
     let shouldFarmLowerZone = false;
 
     //Farm Flags
@@ -681,20 +801,20 @@ function autoMap() {
     }
     let restartVoidMap = false;
     if (game.global.challengeActive == 'Nom' && getPageSetting('FarmWhenNomStacks7')) {
-        if (game.global.gridArray[99].nomStacks > customVars.NomFarmStacksCutoff[0]) {
+        if (game.global.gridArray[99].nomStacks > MODULES.maps.NomFarmStacksCutoff[0]) {
             if (game.global.mapBonus != getPageSetting('MaxMapBonuslimit'))
                 shouldDoMaps = true;
         }
-        if (game.global.gridArray[99].nomStacks == customVars.NomFarmStacksCutoff[1]) {
-            shouldFarm = (calcHDRatio() > customVars.NomfarmingCutoff);
+        if (game.global.gridArray[99].nomStacks == MODULES.maps.NomFarmStacksCutoff[1]) {
+            shouldFarm = (calcHDRatio() > MODULES.maps.NomfarmingCutoff);
             shouldDoMaps = true;
         }
-        if (!game.global.mapsActive && game.global.gridArray[game.global.lastClearedCell + 1].nomStacks >= customVars.NomFarmStacksCutoff[2]) {
-            shouldFarm = (calcHDRatio() > customVars.NomfarmingCutoff);
+        if (!game.global.mapsActive && game.global.gridArray[game.global.lastClearedCell + 1].nomStacks >= MODULES.maps.NomFarmStacksCutoff[2]) {
+            shouldFarm = (calcHDRatio() > MODULES.maps.NomfarmingCutoff);
             shouldDoMaps = true;
         }
-        if (game.global.mapsActive && game.global.mapGridArray[game.global.lastClearedMapCell + 1].nomStacks >= customVars.NomFarmStacksCutoff[2]) {
-            shouldFarm = (calcHDRatio() > customVars.NomfarmingCutoff);
+        if (game.global.mapsActive && game.global.mapGridArray[game.global.lastClearedMapCell + 1].nomStacks >= MODULES.maps.NomFarmStacksCutoff[2]) {
+            shouldFarm = (calcHDRatio() > MODULES.maps.NomfarmingCutoff);
             shouldDoMaps = true;
             restartVoidMap = true;
         }
@@ -722,26 +842,34 @@ function autoMap() {
     if (doMaxMapBonus) shouldDoMaps = true;
 
     const farming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (preVoidCheck && !enoughDamage));
-    const needMetal = (!enoughHealth || !enoughDamage) && !needPrestige;
+    const needMetal = (!enoughHealth || !enoughDamage);
 
     const hze = getHighestLevelCleared();
     const modsUnlocked = hze >= 59;
     const haveMapReducer = game.talents.mapLoot.purchased;
-
-    let modPool = ['fa'];  // cheap fallback
     let minMapLvl = game.global.world - game.portal.Siphonology.level;
     let baseMapLvl = game.global.world - (haveMapReducer ?  1 : 0); // includes Map Reducer mastery;
+
+    let modPool = defaultMapMods;
+    let priority = mapModPriority.levels;
+    if (farming) {
+        minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
+    }
+    if (farming || needMetal) {
+        modPool = farmingMapMods;
+        priority = mapModPriority.mods;
+    }
     if (needPrestige) {
         modPool = prestigeMapMods;
         minMapLvl = game.global.world;
         baseMapLvl = game.global.world;
-    } else if (farming || needMetal) {
-        modPool = farmingMapMods;
-        if (farming) {
-            minMapLvl = game.global.world - (shouldFarmLowerZone ? 11 : game.portal.Siphonology.level);
-        }
     }
-    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze); // discard still locked mods
+    modPool = modPool.filter(m => mapSpecialModifierConfig[m].unlocksAt <= hze); // only keep unlocked mods
+    if (needMetal) {
+        // this is a temporary state - we're still getting map stacks, but would be farming otherwise
+        // to make sure this map is not wasted, keep only the best unlocked cache mod and FA
+        modPool = (modPool.length > 1 ? [modPool[0], modPool[modPool.length-1]] : modPool);
+    }
 
     // Calculate Siphonology and Extra Map Levels
     let optimalMapLvl = Math.max(minMapLvl, 6);
@@ -767,18 +895,23 @@ function autoMap() {
                 optimalMapLvl++;
             }
         }
-        // if we have map reducer, and chose to farm at the current level, we can lower zone by 1 for faster farming
-        if (haveMapReducer && (optimalMapLvl === game.global.world)) {
-            optimalMapLvl--;
-        }
     }
+
     if ((farming || needPrestige) && game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
         // Prefer "Oneshot level" + 1, except on magma or in Coordinated challenge
         optimalMapLvl++;
     }
+
+    if (!modsUnlocked) {
+        // can't increase map levels yet
+        optimalMapLvl = Math.min(optimalMapLvl, game.global.world);
+    }
     if (needPrestige) {
         // we need at least world level to get prestiges
         optimalMapLvl = Math.max(optimalMapLvl, game.global.world);
+    } else if (haveMapReducer && (optimalMapLvl === game.global.world)) {
+        // if we have map reducer, and chose to farm at the current level, we can lower zone by 1 for faster farming
+        optimalMapLvl = baseMapLvl;
     }
 
     let optimalMap = null;
@@ -804,7 +937,7 @@ function autoMap() {
         }
     }
     if (game.global.mapsOwnedArray.length <= 0) {
-        selectedMap = "create";
+        selectedMapId = "create";
     }
 
     //Uniques
@@ -819,7 +952,7 @@ function autoMap() {
             //Check if it's unique
             if (map.noRecycle) {
                 if (shouldRunUniqueMap(map)) {
-                    selectedMap = map.id;
+                    selectedMapId = map.id;
                     break;
                 }
 
@@ -836,8 +969,8 @@ function autoMap() {
         var tryBionicSniper = !game.achievements.oneOffs.finished[42] && (110 + 15*bionicMaxLevel) >= game.global.world + 45;
         if (bionicPool.length > 0 && (bionicMaxLevel > game.global.roboTrimpLevel || tryBionicSniper)) {
             var bionicLevel = Math.min(bionicPool.length, bionicMaxLevel);
-            if (bionicLevel > 0 && bionicPool[bionicLevel-1]) selectedMap = bionicPool[bionicLevel-1].id;
-            //debug("Selected Bionic Level " + bionicLevel + " resulting in map id " + selectedMap);
+            if (bionicLevel > 0 && bionicPool[bionicLevel-1]) selectedMapId = bionicPool[bionicLevel-1].id;
+            //debug("Selected Bionic Level " + bionicLevel + " resulting in map id " + selectedMapId);
         }
     }
 
@@ -909,9 +1042,9 @@ function autoMap() {
             if (getPageSetting('DisableFarm') <= 0)
                 shouldFarm = shouldFarm || false;
             if (!restartVoidMap)
-                selectedMap = theMap.id;
+                selectedMapId = theMap.id;
             if (game.global.mapsActive && getCurrentMapObject().location == "Void" && game.global.challengeActive == "Nom" && getPageSetting('FarmWhenNomStacks7')) {
-                if (game.global.mapGridArray[theMap.size - 1].nomStacks >= customVars.NomFarmStacksCutoff[2]) {
+                if (game.global.mapGridArray[theMap.size - 1].nomStacks >= MODULES.maps.NomFarmStacksCutoff[2]) {
                     mapsClicked(true);
                 }
             }
@@ -929,7 +1062,7 @@ function autoMap() {
 
     // Automaps
     if (shouldDoMaps || doVoids || needPrestige) {
-        if (selectedMap === "world") {
+        if (selectedMapId === "world") {
             if (preSpireFarming) {
                 const spiremaplvl = (game.talents.mapLoot.purchased && MODULES["maps"].SpireFarm199Maps) ? game.global.world - 1 : game.global.world;
                 let spireMap = null;
@@ -940,17 +1073,17 @@ function autoMap() {
                         }
                     }
                 }
-                selectedMap = (spireMap? spireMap.id : "create");
+                selectedMapId = (spireMap? spireMap.id : "create");
             } else if (needPrestige) {
                 if (highestMap && (game.global.world + extraMapLevels) <= highestMap.level) {
-                    selectedMap = highestMap.id;
+                    selectedMapId = highestMap.id;
                 } else {
-                    selectedMap = "create";
+                    selectedMapId = "create";
                 }
             } else if (optimalMap) {
-                selectedMap = optimalMap.id;
+                selectedMapId = optimalMap.id;
             } else {
-                selectedMap = "create";
+                selectedMapId = "create";
             }
         }
     }
@@ -960,10 +1093,11 @@ function autoMap() {
         return;
     }
 
-    const tryCrafting = selectedMap === "create";
+    const tryCrafting = selectedMapId === "create";
+    const advancing = selectedMapId === "world";
     if (!game.global.preMapsActive && game.global.mapsActive) {
         var doDefaultMapBonus = game.global.mapBonus < getPageSetting('MaxMapBonuslimit') - 1;
-        if (selectedMap == game.global.currentMapId && !getCurrentMapObject().noRecycle && (doDefaultMapBonus || vanillaMapatZone || doMaxMapBonus || shouldFarm || needPrestige || shouldDoSpireMaps || mapExiting)) {
+        if (selectedMapId == game.global.currentMapId && !getCurrentMapObject().noRecycle && (doDefaultMapBonus || vanillaMapatZone || doMaxMapBonus || shouldFarm || needPrestige || shouldDoSpireMaps || mapExiting)) {
             //Start with Repeat on
             if (!game.global.repeatMap) {
                 repeatClicked();
@@ -1018,8 +1152,11 @@ function autoMap() {
             }
         }
     } else if (!game.global.preMapsActive && !game.global.mapsActive) {
-        if (selectedMap != "world") {
+        // we're in the world
+
+        if (!advancing) {
             if (!game.global.switchToMaps) {
+                // prepare to go to map chamber
                 mapsClicked();
             }
             if ((!getPageSetting('PowerSaving') || (getPageSetting('PowerSaving') == 2) && (doVoids || preVoidCheck)) && game.global.switchToMaps &&
@@ -1041,165 +1178,59 @@ function autoMap() {
             }
         }
     } else if (game.global.preMapsActive) {
-        devDebug(debugCtx, "Siphonology and selected maps", {
-            minMapLvl: minMapLvl,
-            baseMapLvl: baseMapLvl,
-            optimalMapLvl: optimalMapLvl,
+        // we're in the maps chamber
+
+        devDebug(debugCtx, "Map stats", {
             optimalMap: debugPrettifyMap(optimalMap),
             alternativeMap: debugPrettifyMap(alternativeMap),
             highestMap: debugPrettifyMap(highestMap),
             lowestMap: debugPrettifyMap(lowestMap),
-            selectedMap: selectedMap,
-            tryCrafting: tryCrafting,
-            needMetal: needMetal,
-            needPrestige: needPrestige,
+            selectedMapId: selectedMapId,
             fragmentsNeeded: prettify(fragmentsNeeded)
         }, '=', true);
 
-        if (selectedMap === "world") {
-            mapsClicked();
-        } else if (!tryCrafting) {
-            let mapType;
-            if (optimalMap && selectedMap === optimalMap.id) {
-                mapType = 'optimal';
-            } else if (alternativeMap && selectedMap === alternativeMap.id) {
-                mapType = 'alternative';
-            } else {
-                mapType = 'selected';
-            }
-            selectMap(selectedMap);
-            runMap();
-            const map = game.global.mapsOwnedArray[getMapIndex(selectedMap)];
-            debug(`Running ${mapType} map ${prettifyMap(map)}`, "maps", 'th-large');
-            lastMapWeWereIn = getCurrentMapObject();
+        const currentMap = (optimalMap || alternativeMap);
+        const currentMapAdjective = getMapAdjective(currentMap.id, optimalMap, alternativeMap);
+
+        if (advancing) {
+            // exit to world
+            return mapsClicked();
+        }
+        if (!tryCrafting) {
+            runSelectedMap(selectedMapId, currentMapAdjective);
             fragmentsNeeded = 0;
-        } else {
-            const prevFragmentsNeeded = fragmentsNeeded;
-            const currentMap = (optimalMap || alternativeMap);
-            const mapType = (optimalMap ? 'optimal' : 'alternative');
-            let shouldBuyMap, bestMod, highestMapCost;
-            devDebug(debugCtx, 'Trying to design a map', {
-                modsUnlocked: modsUnlocked, AdvMapSpecialModifier: getPageSetting('AdvMapSpecialModifier'),
-                currentMap: debugPrettifyMap(currentMap),
-            }, '=', true);
-            if (!configureMapSliders(customVars, minMapLvl)) {
-                // Can't afford a map even with the worst slider values
-                shouldBuyMap = false;
-            } else {
-                if (modsUnlocked && getPageSetting('AdvMapSpecialModifier')) {
-                    if (!currentMap) {
-                        // we don't have a suitable map, so get any decent map to run
-                        if (needMetal) {
-                            // prioritize caches for farming
-                            bestMod = setAffordableMapMod(farmingMapMods);
-                            fragmentsNeeded = setAffordableMapLevel(optimalMapLvl);
-                        } else {
-                            // otherwise, prioritize levels
-                            setAffordableMapLevel(optimalMapLvl);
-                            bestMod = setAffordableMapMod(modPool);
-                            fragmentsNeeded = bestMod.cost;
-                        }
-                        shouldBuyMap = canAffordSelectedMap();
-                    } else if (needMetal) {
-                        // for farming, a map bonus (LMC/HC/etc) is better than extra levels
-                        bestMod = maybeSetBestMapMod(farmingMapMods);
-                        const selectedMod = getSelectedMapMod();
-                        if (selectedMod) {
-                            // we got the best unlocked mod, now we can try to increase map levels
-                            highestMapCost = setAffordableMapLevel(optimalMapLvl);
-                            if (highestMapCost > game.resources.fragments.owned) {
-                                // we still can handle more levels, but can't afford it.
-                                // remember the cost to re-craft later
-                                fragmentsNeeded = highestMapCost;
-                            }
-                        } else {
-                            // couldn't get the best mod, so no point in increasing levels
-                            fragmentsNeeded = bestMod.cost;
-                        }
-                        const totalMapLevel = getSelectedMapLevel();
-                        const gotBetterLevel = totalMapLevel > currentMap.level;
-                        let gotBetterBonus = modPool.includes(selectedMod) && !modPool.includes(currentMap.bonus);
-                        if (!gotBetterBonus && currentMap.level === optimalMapLvl) {
-                            // if we can't get better level, bonus improvement is fine
-                            gotBetterBonus = modPool.indexOf(selectedMod) < modPool.indexOf(currentMap.bonus);
-                        }
-                        devDebug(debugCtx, 'Designed a map', {
-                            gotBetterBonus: gotBetterBonus, gotBetterLevel: gotBetterLevel,
-                            selectedMapMod: selectedMod, selectedMapLevel: totalMapLevel,
-                            bestModName: bestMod.mod, bestModCost: bestMod.cost
-                        }, '=', true);
-                        shouldBuyMap = canAffordSelectedMap() && (gotBetterBonus || gotBetterLevel);
-                    } else {
-                        // if not farming, we're getting prestige or map stacks. in this case prioritize levels over random mods
-                        setAffordableMapLevel(optimalMapLvl);
-                        bestMod = setAffordableMapMod(modPool);
-                        fragmentsNeeded = bestMod.cost;
-                        const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
-                        shouldBuyMap = canAffordSelectedMap() && gotBetterLevel;
-                    }
-                } else {
-                    const gotBetterLevel = getSelectedMapLevel() > currentMap.level;
-                    shouldBuyMap = canAffordSelectedMap() && gotBetterLevel;
-                }
-            }
+            return;
+        }
+        // try to craft a map
+        const allowMods = modsUnlocked && getPageSetting('AdvMapSpecialModifier');
+        const prevFragmentsNeeded = fragmentsNeeded;
 
-            const selectedMod = getSelectedMapMod();
-            const extraMapLevels = getExtraMapLevels();
-            const totalMapLevel = getSelectedMapLevel();
-            const mapCost = updateMapCost(true);
+        const shouldBuyMap = designMap(debugCtx, currentMap, minMapLvl, optimalMapLvl, allowMods, modPool, priority);
+        const designedLevel = getDesignedMapLevel();
+        devDebug(debugCtx, 'Designed a map', {
+            designedMod: getDesignedMapMod(),
+            designedLevel: designedLevel,
+            shouldBuyMap: shouldBuyMap
+        }, '=', true);
 
-            if (fragmentsNeeded && prevFragmentsNeeded !== fragmentsNeeded && fragmentsNeeded > game.resources.fragments.owned) {
-                const wanted = [(bestMod ? bestMod.mod : undefined),
-                    (totalMapLevel < optimalMapLvl ? `+${optimalMapLvl-totalMapLevel}lvl` : undefined)].filter(m => m).join(', ');
+        if (fragmentsNeeded
+            && prevFragmentsNeeded !== fragmentsNeeded
+            && fragmentsNeeded > game.resources.fragments.owned) {
+                const wanted = [(modPool.length ? modPool[0] : undefined),
+                        (designedLevel < optimalMapLvl ? `+${optimalMapLvl-designedLevel}lvl` : undefined)].filter(m => m).join(', ');
                 debug(`Will recheck map upgrades when we have ${prettify(fragmentsNeeded)} fragments (want: ${wanted})`, "maps", 'th-large');
-            }
 
-            if (shouldBuyMap) {
-                const modMsgs = [];
-                if (selectedMod) {
-                    modMsgs.push(mapSpecialModifierConfig[selectedMod].name);
-                }
-                if (extraMapLevels) {
-                    modMsgs.push(`z+${extraMapLevels}`);
-                }
-                const ratio = (100 * (mapCost / game.resources.fragments.owned)).toFixed(2);
-                const bonusMsg = (modMsgs.length > 0 ? `${modMsgs.join(', ')}` : 'no bonus');
-                debug(`Buying a map: Level ${totalMapLevel} (${bonusMsg}). Cost: ${ratio}% of your fragments (${prettify(mapCost)})`, "maps", 'th-large');
+        }
 
-                var result = buyMap();
-                if (result === -2) {
-                    debug("Too many maps, recycling all lower-level maps", "maps", 'th-large');
-                    recycleBelow(true);
-                    result = buyMap();
-                    if (result === -2) {
-                        if (lowestMap) {
-                            debug("Still too many maps, recycling map of the lowest level");
-                            recycleMap(lowestMap.id);
-                            result = buyMap();
-                            if (result !== -2) {
-                                return;
-                            }
-                        }
-                    } else {
-                        return;
-                    }
-                    debug("Failed to buy a map");
-                }
-            } else if (currentMap) {
-                selectMap(currentMap.id);
-                runMap();
-                if (lastMapWeWereIn !== getCurrentMapObject()) {
-                    debug(`Running ${mapType} map: ${prettifyMap(currentMap)}`, "maps", 'th-large');
-                    lastMapWeWereIn = getCurrentMapObject();
-                }
-            } else {
-                // No fragments to create a decent map
-                selectMap(highestMap.id);
-                debug(`Can't afford the map we designed, Level ${totalMapLevel}`, "maps", '*crying2');
-                debug(`...selected our highest map instead: ${prettifyMap(highestMap)}`, "maps", '*happy2');
-                runMap();
-                lastMapWeWereIn = getCurrentMapObject();
-            }
+        if (shouldBuyMap) {
+            const mapToRecycleIfBuyingFails = lowestMap;
+            buyDesignedMap(mapToRecycleIfBuyingFails);
+        } else if (currentMap) {
+            runSelectedMap(currentMap.id, currentMapAdjective);
+        } else {
+            debug(`Can't afford the map we designed, Level ${designedLevel}`, "maps", '*crying2');
+            debug(`...selected our highest map instead: ${prettifyMap(highestMap)}`, "maps", '*happy2');
+            runSelectedMap(highestMap.id, currentMapAdjective);
         }
     }
 }
@@ -1353,7 +1384,6 @@ function RautoMap() {
 
     //Vars
     var mapenoughdamagecutoff = getPageSetting("Rmapcuntoff");
-    var customVars = MODULES["maps"];
     if (game.global.repeatMap == true && !game.global.mapsActive && !game.global.preMapsActive) repeatClicked();
     if ((game.options.menu.repeatUntil.enabled == 1 || game.options.menu.repeatUntil.enabled == 2 || game.options.menu.repeatUntil.enabled == 3) && !game.global.mapsActive && !game.global.preMapsActive) toggleSetting('repeatUntil');
     if (game.options.menu.exitTo.enabled != 0) toggleSetting('exitTo');
@@ -2182,7 +2212,7 @@ function RautoMap() {
             if (RdoVoids && game.global.switchToMaps &&
                 (RdoVoids ||
                     (!RenoughDamage && RenoughHealth && game.global.lastClearedCell < 9) ||
-                    (RshouldFarm && game.global.lastClearedCell >= customVars.RshouldFarmCell) ||
+                    (RshouldFarm && game.global.lastClearedCell >= MODULES.maps.RshouldFarmCell) ||
                     (RscryerStuck)) &&
                 (
                     (game.resources.trimps.realMax() <= game.resources.trimps.owned + 1) ||
@@ -2376,17 +2406,17 @@ function RautoMap() {
             document.getElementById("mapLevelInput").value = game.global.world;
             var decrement;
             var tier;
-            if (game.global.world >= customVars.RMapTierZone[0]) {
-                tier = customVars.RMapTier0Sliders;
+            if (game.global.world >= MODULES.maps.RMapTierZone[0]) {
+                tier = MODULES.maps.RMapTier0Sliders;
                 decrement = [];
-            } else if (game.global.world >= customVars.RMapTierZone[1]) {
-                tier = customVars.RMapTier1Sliders;
+            } else if (game.global.world >= MODULES.maps.RMapTierZone[1]) {
+                tier = MODULES.maps.RMapTier1Sliders;
                 decrement = ['loot'];
-            } else if (game.global.world >= customVars.RMapTierZone[2]) {
-                tier = customVars.RMapTier2Sliders;
+            } else if (game.global.world >= MODULES.maps.RMapTierZone[2]) {
+                tier = MODULES.maps.RMapTier2Sliders;
                 decrement = ['loot'];
             } else {
-                tier = customVars.RMapTier3Sliders;
+                tier = MODULES.maps.RMapTier3Sliders;
                 decrement = ['diff', 'loot'];
             }
             sizeAdvMapsRange.value = tier[0];
