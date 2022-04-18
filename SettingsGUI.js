@@ -533,7 +533,6 @@ function initializeAllSettings() {
     //Line 1
     createSetting('AutoMaps', ["Auto Maps Off", "Auto Maps On", "Auto Maps No Unique"], 'Automaps. The no unique setting will not run unique maps such as dimensions of anger. Recommended ON. Do not use MaZ, it will not work. ', 'multitoggle', 1, null, "Maps");
     createSetting('automapsportal', 'AM Portal', 'Makes sure Auto Maps is on after portalling. Turn this off to disable this and remember your choice. ', 'boolean', true, null, 'Maps');
-    createSetting('DynamicSiphonology', 'Dynamic Siphonology', 'Recommended Always ON. Use the right level of siphonology based on your damage output. IE: Only uses  siphonology if you are weak. With this OFF it means it ALWAYS uses the lowest siphonology map you can create. Siphonology is a perk you get at level 115-125ish, and means you receive map bonus stacks for running maps below your current zone - Up to 3 zones below (1 per perk level).', 'boolean', true, null, 'Maps');
     createSetting('PreferMetal', 'Prefer Metal Maps', 'Always prefer metal maps, intended for manual use, such as pre-spire farming. Remember to turn it back off after you\'re done farming!', 'boolean', false, null, 'Maps');
     createSetting('mapselection', 'Map Selection', 'Select which you prefer to use. Recommend Plentiful (Gardens) if you have unlocked it. ', 'dropdown', 'Mountain', ["Random", "Mountain", "Forest", "Sea", "Depths", "Gardens"], 'Maps');
     createSetting('MaxMapBonusAfterZone', 'Max MapBonus After', 'Always gets Max Map Bonus from this zone on. (inclusive and after).<br><b>NOTE:</b> Set -1 to disable entirely (default). Set 0 to use it always.<br><b>Advanced:</b>User can set a lower number than the default 10 maps with the AT hidden console command: MODULES[\\"maps\\"].maxMapBonusAfterZ = 9;', 'value', '-1', null, 'Maps');
@@ -553,7 +552,6 @@ function initializeAllSettings() {
 
     //Line 3
     createSetting('TrimpleZ', 'Trimple Z', 'I don\'t really think doing this automatically is a good idea. You might want to farm for a bit before this, but I\'m not sure if it\'s meaningful at all to make a \'farm X minutes before trimple\' parameter to go along with it. Set it to the zone you want and it will run Trimple of Doom for Ancient Treasure AFTER farming and getting map stacks. If it is a negative number, this will be disabled after a successful run so you can set it differently next time.', 'valueNegative', 0, null, 'Maps');
-    createSetting('AdvMapSpecialModifier', 'Map Special Modifier', '<b>BELOW 300 ONLY</b><br> Attempt to select the BEST map special modifier. When starting a map for <b>Prestige</b> it will use <i>Prestigious</i>. When starting a map for <b>Farming</b> (for equipment) it will use your best metal cache. In any other case (such as farming for map stacks) it will use <i>Fast Attacks</i>. In all cases it uses the best modifier that can be afforded.', 'boolean', true, null, 'Maps');
     createSetting('scryvoidmaps', 'VM Scryer', 'Only use if you have Scryhard II, for er, obvious reasons. Works without the scryer options. ', 'boolean', false, null, 'Maps');
     createSetting('buywepsvoid', 'VM Buy Weps', 'Buys gear in Void maps regardless of your H:D ratio. Useful if you want to overkill as much as possible. ', 'boolean', false, null, 'Maps');
 
@@ -1659,7 +1657,6 @@ function updateCustomButtons() {
     !radonon ? turnOn("AutoMaps"): turnOff("AutoMaps");
     !radonon ? turnOn("automapsportal"): turnOff("automapsportal");
     !radonon ? turnOn("mapselection"): turnOff("mapselection");
-    !radonon ? turnOn("DynamicSiphonology"): turnOff("DynamicSiphonology");
     !radonon ? turnOn("PreferMetal"): turnOff("PreferMetal");
     !radonon ? turnOn("MaxMapBonusAfterZone"): turnOff("MaxMapBonusAfterZone");
     !radonon ? turnOn("MaxMapBonuslimit"): turnOff("MaxMapBonuslimit");
@@ -1674,7 +1671,6 @@ function updateCustomButtons() {
     !radonon ? turnOn("runnewvoidspoison"): turnOff("runnewvoidspoison");
     !radonon ? turnOn("onlystackedvoids"): turnOff("onlystackedvoids");
     !radonon ? turnOn("TrimpleZ"): turnOff("TrimpleZ");
-    !radonon ? turnOn("AdvMapSpecialModifier"): turnOff("AdvMapSpecialModifier");
     !radonon ? turnOn("scryvoidmaps"): turnOff("scryvoidmaps");
     !radonon ? turnOn("buywepsvoid"): turnOff("buywepsvoid");
     

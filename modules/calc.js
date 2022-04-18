@@ -983,6 +983,9 @@ function calcHDRatio(targetZone, type) {
         else if (game.talents.voidPower2.purchased) ourBaseDamage *= 1.35;
         else if (game.talents.voidPower.purchased)  ourBaseDamage *= 1.65;
     }
+    if (type === 'map' && (game.unlocks.imps.Titimp)) {
+        ourBaseDamage *= 2;
+    }
 
     //Lead Challenge
     if (game.global.challengeActive == "Lead" && targetZone%2 == 1 && type != "map") {
