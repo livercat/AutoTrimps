@@ -388,8 +388,23 @@ function calcOurDmg(minMaxAvg = "avg", specificStance, realDamage, ignoreMapBonu
     if (game.global.antiStacks > 0) number *= getAnticipationBonus();
 
     //Formation
-    if (specificStance && game.global.formation != 0) number /= (game.global.formation == 2) ? 4 : 0.5;
-    if (specificStance && specificStance != "X") number *= (specificStance == "D") ? 4 : 0.5;
+    if (specificStance) {
+        // negate current formation
+        if (![0, 5].includes(game.global.formation)) { // 0 is X, 5 is W - both have 1x attack
+            if (game.global.formation === 2) { // 2 is D (4x attack)
+                number /= 4;
+            } else { // H, B, S (0.5x attack)
+                number *= 2;
+            }
+        }
+        if (!['X', 'W'].includes(specificStance)) {
+            if (specificStance === "D") {
+                number *= 4;
+            } else {
+                number /= 2;
+            }
+        }
+    }
 
     //Robo Trimp
     if (game.global.roboTrimpLevel > 0) number *= 1 + 0.2 * game.global.roboTrimpLevel;
@@ -467,7 +482,7 @@ function calcOurDmg(minMaxAvg = "avg", specificStance, realDamage, ignoreMapBonu
 
     //Scryhard
     var fightingCorrupted = getCurrentEnemy() && getCurrentEnemy().corrupted || !realDamage && (mutations.Healthy.active() || mutations.Corruption.active());
-    if (game.talents.scry.purchased && fightingCorrupted && !specificStance && game.global.formation == 4)
+    if (game.talents.scry.purchased && fightingCorrupted && !specificStance && [4, 5].includes(game.global.formation))
         number *= 2;
 
     //Spire Strength Trap

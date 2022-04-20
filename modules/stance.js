@@ -77,27 +77,34 @@ function oneShotZone(zone, type, specificStance, maxOrMin) {
 }
 
 function oneShotPower(specificStance, offset = 0, maxOrMin) {
-    //Calculates our minimum damage
-    var baseDamage = calcOurDmg(maxOrMin ? "max" : "min", specificStance, true, game.global.mapsActive);
-    var damageLeft = baseDamage + addPoison(true);
+    // returns the number of enemies we will kill in one hit (counting all sources of Overkill)
 
+    //Calculates our minimum damage
+    const baseDamage = calcOurDmg(maxOrMin ? "max" : "min", specificStance, true, game.global.mapsActive);
+    let damageLeft = baseDamage + addPoison(true);
+    let cell = 1;
     //Calculates how many enemies we can one shot + overkill
-    for (var power=1; power <= maxOneShotPower(); power++) {
+    while(cell <= maxOneShotPower()) {
+        const enemy = getCurrentEnemy(cell+offset);
         //No enemy to overkill (usually this happens at the last cell)
-        if (!getCurrentEnemy(power+offset)) return power+offset-1;
-        
+        if (!enemy) {
+            return cell+offset-1;
+        }
         //Enemy Health: current enemy or his neighbours
-        if (power+offset > 1) damageLeft -= calcSpecificEnemyHealth(undefined, undefined, getCurrentEnemy(power+offset).level);
-        else damageLeft -= getCurrentEnemy().health;
-        
+        if (cell+offset === 1) {
+            damageLeft -= enemy.health;
+        } else {
+            damageLeft -= calcSpecificEnemyHealth(undefined, undefined, enemy.level);
+        }
         //Check if we can one shot the next enemy
-        if (damageLeft < 0) return power-1;
-        
+        if (damageLeft < 0) {
+            return cell-1;
+        }
         //Calculates our minimum "left over" damage, which will be used by the Overkill
         damageLeft *= 0.005 * game.portal.Overkill.level;
+        cell += 1;
     }
-    
-    return power-1;
+    return cell-1;
 }
 
 function challengeDamage(maxHealth, minDamage, maxDamage, missingHealth, block, pierce, critPower = 2) {
@@ -191,11 +198,12 @@ function directDamage(block, pierce, currentHealth, minDamage, critPower = 2) {
 
 function survive(formation = "S", critPower = 2, ignoreArmy) {
     //Check if the formation is valid
-    if (formation == "D"  && !game.upgrades.Dominance.done) return false;
-    if (formation == "XB" && !game.upgrades.Barrier.done) return false;
-    if (formation == "B"  && !game.upgrades.Barrier.done) return false;
-    if (formation == "H"  && !game.upgrades.Formations.done) return false;
-    if (formation == "S"  && (game.global.world < 60 || game.global.highestLevelCleared < 180)) return false;
+    if (formation === "D"  && !game.upgrades.Dominance.done) return false;
+    if (formation === "XB" && !game.upgrades.Barrier.done) return false;
+    if (formation === "B"  && !game.upgrades.Barrier.done) return false;
+    if (formation === "H"  && !game.upgrades.Formations.done) return false;
+    if (formation === "S"  && (game.global.world < 60 || game.global.highestLevelCleared < 180)) return false;
+    if (formation === "W"  && (game.global.uberNature !== 'Wind')) return false;
 
     //Base stats
     var health = baseHealth;
@@ -208,14 +216,14 @@ function survive(formation = "S", critPower = 2, ignoreArmy) {
     var newSquadRdy = !ignoreArmy && game.resources.trimps.realMax() <= game.resources.trimps.owned + 1;
 
     //Applies the formation modifiers
-    if      (formation == "XB") {health /= 2;}
-    else if (formation == "D") {minDamage *= 4; maxDamage *= 4; health /= 2; block  /= 2;}
-    else if (formation == "B") {minDamage /= 2; maxDamage /= 2; health /= 2; block  *= 4;}
-    else if (formation == "H") {minDamage /= 2; maxDamage /= 2; health *= 4; block  /= 2;}
-    else if (formation == "S") {minDamage /= 2; maxDamage /= 2; health /= 2; block  /= 2;}
+    if      (formation === "XB") {health /= 2;}
+    else if (formation === "D") {minDamage *= 4; maxDamage *= 4; health /= 2; block  /= 2;}
+    else if (formation === "B") {minDamage /= 2; maxDamage /= 2; health /= 2; block  *= 4;}
+    else if (formation === "H") {minDamage /= 2; maxDamage /= 2; health *= 4; block  /= 2;}
+    else if (formation === "S") {minDamage /= 2; maxDamage /= 2; health /= 2; block  /= 2;}
     
     //Max health for XB formation
-    var maxHealth = health * (formation == "XB" ? 2 : 1);
+    var maxHealth = health * (formation === "XB" ? 2 : 1);
 
     //Empowerments - Poison
     minDamage += addPoison(true)
@@ -223,7 +231,7 @@ function survive(formation = "S", critPower = 2, ignoreArmy) {
 
     //Pierce
     var pierce = (game.global.brokenPlanet && !game.global.mapsActive) ? getPierceAmt() : 0;
-    if (formation != "B" && game.global.formation == 3) pierce *= 2;
+    if (formation !== "B" && game.global.formation === 3) pierce *= 2;
 
     //Decides if the trimps can survive in this formation
     var notSpire = game.global.mapsActive || !game.global.spireActive;
@@ -241,15 +249,22 @@ function survive(formation = "S", critPower = 2, ignoreArmy) {
 function autoStance() {
     calcBaseDamageInX();
 
+    let baseStance;
+    if (game.global.uberNature === "Wind" && getEmpowerment() !== "Wind") {
+        baseStance = 5; // 'W' formation
+    } else {
+        baseStance = 0; // 'X' formation
+    }
+
     //Invalid Map - Dead Soldiers - Auto Stance Disabled - Formations Unavailable - No Enemy
-    if (game.global.soldierHealth <= 0) return;
+    if (game.global.soldierHealth <= 0) return true;
     if (game.global.gridArray.length === 0) return true;
     if (!getPageSetting('AutoStance')) return true;
     if (!game.upgrades.Formations.done) return true;
     if (typeof getCurrentEnemy() === 'undefined') return true;
 
     //Keep on D vs the Domination bosses
-    if (game.global.challengeActive == "Domination" && (game.global.lastClearedCell == 98 || getCurrentEnemy() && getCurrentEnemy().name == "Cthulimp")) {
+    if (game.global.challengeActive === "Domination" && (game.global.lastClearedCell === 98 || getCurrentEnemy() && getCurrentEnemy().name === "Cthulimp")) {
         autoStance2();
         return;
     }
@@ -261,16 +276,16 @@ function autoStance() {
         var critPower;
         for (critPower=2; critPower >= -2; critPower--) {
             if      (survive("D", critPower))  {setFormation(2);   break;}
-            else if (survive("XB", critPower)) {setFormation("0"); break;}
+            else if (survive("XB", critPower)) {setFormation(baseStance); break;}
             else if (survive("B", critPower))  {setFormation(3);   break;}
-            else if (survive("X", critPower))  {setFormation("0"); break;}
+            else if (survive("X", critPower))  {setFormation(baseStance); break;}
             else if (survive("H", critPower))  {setFormation(1);   break;}
 	    }
 
         //If it cannot survive the worst case scenario on any formation, attempt it's luck on H, if available, or X
         if (critPower < -2) {
             if (game.upgrades.Formations.done) setFormation(1);
-            else setFormation("0");
+            else setFormation(baseStance);
 	    }
     }
 
