@@ -414,7 +414,7 @@ function initializeAllSettings() {
     createSetting('MaxHotel', 'Max Hotels', 'Hotels. <br>Ignored and hidden when Food AND Gem Eff Ignores Max are On.', 'value', '100', null, "Buildings");
     createSetting('MaxResort', 'Max Resorts', 'Resorts. <br>Ignored and hidden when Food AND Gem Eff Ignores Max are On.', 'value', '100', null, "Buildings");
     createSetting('MaxCollector', 'Max Collectors', 'Collectors. <br>Ignored and hidden when Gem Eff Ignores Max is On. <br><b>Recommend: -1.</b>', 'value', '-1', null, "Buildings");
-    createSetting('MaxGateway', 'Max Gateways', 'Gateways', 'value', '25', null, "Buildings");
+    createSetting('MaxGateway', 'Max Gateways', 'Gateways', 'value', '-1', null, "Buildings");
 
     //Line 3
     createSetting('MaxWormhole', 'Max Wormholes', 'WARNING: Wormholes cost helium! Values below 0 do nothing.', 'value', '0', null, "Buildings");
