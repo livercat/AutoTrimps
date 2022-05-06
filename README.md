@@ -12,6 +12,9 @@ Discord is a chat program. Come to talk about AutoTrimps, for help, or suggestio
 - Zek Fork. All changes made by Zek using GenBTC as base. Currently up-to-date as of 04/2021.
 - Ray Fork. U1 code heavily rewritten and changed by Psycho-Ray, with big contributions from livercat. Please report any bugs you may find.
 
+## Changelist vs Zek's Fork
+Well, I changed a lot, and didn't properly keep track of it, but I made and effort to create a change list with whatever came to my mind. 
+You can check it at the end of this README.
 
 
 ## AT Script Installation
@@ -109,5 +112,31 @@ Enjoy your Graphs!
 Updated Explanation on Discord: <a href="https://discord.com/channels/371177798305447938/962199816270651564">AT FAQ</a>
 
 ## Troubleshooting
-
 **Combat won't start** - Make sure you have enabled the Better Auto Fight/Vanilla setting in Combat & Stance Settings. If you're not on dark theme, you may see a tiny thin black bar in combat, click it to show this setting.
+
+## Changelist
+The most notable changes were in calculations. AT used to not do well with many of the challenges or, let's say events to avoid spoilers, that happened along the way.
+- One of the consequences was that it failed to Stance Dance properly. My fork has a 100% perfect Stance Dance goal in every challenge and situation.
+- Another was how it miscalculated how much it needed to farm at various stages in the game, forcing the player to adjust the farming target all that to compensate for the calc errors. For example, it considers the average impact of Corruption rather than the full value. Kinda. Still, it helps a lot with early corruption.
+- A ton of errors related to this where fixed.
+
+Another noticeable changes, which is the closest I can get to creating a list of changes (in order of game progression):
+- Completely rewrote gathering in early game to make it more efficient.
+- Better Dynamic Gyms
+- Optional changes to how it builds housing (always considers the efficiency, allowing you to not limit houses)
+- A better way of choosing what map to create (and later a WAY better way of doing that, thanks to livercat's help)
+- AutoGigas
+- A much better way to beat any Spire using the Exit Cell option
+- An automatic form of raiding for prestiges that works specially well at Spires (more of that coming soon?)
+- Advanced Nurseries
+- Auto Fuel Zone which updates what zones you should be in fuel mode as you progress, so you don't have to adjust it at every portal.
+
+Special strategies against certain challenges or situations, like:
+- Auto abandon on Decay
+- Lead farms on odd zones, and also has dynamic Genes times.
+- Doesn't buy more damage than needed during reflect dailies (which became unnecessary after a certain patch launched TWO DAYS after I was done. I had to rant)
+- The possibility of only disabling Scrying against corruption, instead of disabling it on the entire zone
+- Special calc to improve the results of certain challenges like Domination and many dailies
+- Automatically accounts for things like if you decided to scry versus corrupted or not in the above example and adjusts how much it wants to farm to compensate for that.
+
+And I'm sure there is more, specially little details like "don't insta abandon your troops to run a map for prestiges, but do it if above a certain cell", but I guess that's what came to my mind.
