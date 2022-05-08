@@ -700,6 +700,7 @@ function initializeAllSettings() {
 
 
     //Challenges
+    createSetting('HumaneMode', 'Humane Mode', 'Legends speak of a universe where trimp lives have meaning, and you are worshipped as their saviour.<br><br>By enabling Humane mode, which was proposed by MrPitimp, a number of changes will take place so that AT will attempt to never fail the Humane Run challenges.<br><br>Recommended: OFF. Humane is a very hard self-imposed challenge, so make sure this is what you really want.', 'boolean', false, null, 'Challenges');
     createSetting('DecayStacksToPush', 'Decay: Stacks to Push', 'During Decay, AT will ignore maps and push to end the zone if we go above this amount of stacks.<br><br>Use -1 or 0 to disable.<br>Defaults to 300.', 'value', '300', null, 'Challenges');
     createSetting('DecayStacksToAbandon', 'Decay: Stacks to Abandon', 'During Decay, AT will abandon the challenge if we go above this amount of stacks.<br><br>Use -1 or 0 to disable.<br>Defaults to 300.', 'value', '600', null, 'Challenges');
 
