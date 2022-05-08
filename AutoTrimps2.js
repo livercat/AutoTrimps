@@ -1,6 +1,6 @@
 var ATversion = 'ZekRayDee v5.2';
 var atscript = document.getElementById('AutoTrimps-script');
-var basepath = 'https://Psycho-Ray.github.io/AutoTrimps/', modulepath='modules/';
+var basepath = 'https://github-cdn.vercel.app/Psycho-Ray/AutoTrimps/beta/', modulepath='modules/';
 atscript !== null && (basepath = atscript.src.replace(/AutoTrimps2\.js$/,''));
 
 function ATscriptLoad(a,b) {
