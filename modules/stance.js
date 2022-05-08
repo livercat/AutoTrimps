@@ -202,6 +202,7 @@ function survive(formation = "S", critPower = 2, ignoreArmy) {
     if (formation == "S"  && (game.global.world < 60 || game.global.highestLevelCleared < 180)) return false;
 
     //Base stats
+    var humaneMode = getPageSetting("HumaneMode");
     var health = baseHealth;
     var block  = baseBlock;
     var missingHealth = game.global.soldierHealthMax - game.global.soldierHealth;
@@ -239,7 +240,7 @@ function survive(formation = "S", critPower = 2, ignoreArmy) {
     var maxHealthier = maxHealth * Math.pow(1.01, game.jobs.Geneticist.owned - game.global.lastLowGen);
     var harm2 = directDamage(blockier, pierce, healthier, minDamage, critPower) + challengeDamage(maxHealthier, minDamage, maxDamage, 0, blockier, pierce, critPower);
 
-    return (newSquadRdy && notSpire && healthier > harm2) || (health - missingHealth > harm);
+    return (newSquadRdy && notSpire && !humaneMode && healthier > harm2) || (health - missingHealth > harm);
 }
 
 function autoStance() {
