@@ -232,6 +232,11 @@ class MappingProfile {
             // can't increase map levels yet
             this.optimalLevel = Math.min(this.optimalLevel, this.z);
         }
+
+        //Humane Mode: Decreases Optimal level until we can acceptably survive in it
+        while (this.optimalLevel > this.minLevel && humaneMapSafety(this.optimalLevel, 30, 1.65))
+            this.optimalLevel--;
+
         if (this.haveMapReducer && (this.optimalLevel === this.z) && (this.minLevel <= this.baseLevel)) {
             // if min level allows, and we have Map Reducer, lower the map level
             this.optimalLevel = this.baseLevel;
@@ -280,12 +285,13 @@ class MappingProfile {
 
     selectBetterCraftedMap(map1, map2, prioritizeMods) {
         // disqualify some maps right away
-        const maps = [map1, map2].filter(m => (m && m.level >= this.minLevel && m.level <= this.optimalLevel));
+        const maps = [map1, map2].filter(m => (m && m.level >= this.minLevel && m.level <= this.optimalLevel && humaneMapSafety(m.level, m.size, m.diff)));
         if (!maps.length) {
             return undefined;
         } else if (maps.length === 1) {
             return maps[0];
         }
+
         // select a new map if it's strictly better
         if (getMapScore(map2, this.mods, prioritizeMods) > getMapScore(map1, this.mods, prioritizeMods)) {
             return map2;
@@ -369,9 +375,26 @@ class MapCrafter {
         let level = maxLevel;
         this.setLevel(level);
         while (!this.canAfford() && level > minLevel) {
-            level -= 1;
-            this.setLevel(level);
+            this.setLevel(--level);
         }
+    }
+
+    setHumaneSliders() {
+        //Init
+        var safe = (size, diff) => humaneMapSafety(this.getTotalLevel(), 75 - size * 5, getMapMinMax("difficulty", diff)[1]);
+        this.setSlider("difficulty", 0);
+        this.setSlider("size", 0);
+
+        //Starts by increasing size
+        for (var size = 0; size < 9 && !safe(size, 0); size++)
+            this.setSlider("size", size + 1);
+
+        //Then increases difficulty
+        for (var diff = 0; diff < 9 && !safe(size, diff); diff++)
+            this.setSlider("difficulty", diff + 1);
+
+        //Checks if it still can't survive the map
+        return safe(size, diff);
     }
 
     getMod() {
@@ -398,6 +421,13 @@ class MapCrafter {
         this.setLevel(this.profile.minLevel);
         fragmentsNeeded = 0;
 
+        //Humane Mode: Increases difficulty if needed to pass the Map Safety check
+        if (getPageSetting("HumaneMode") && !this.setHumaneSliders()) {
+            //TODO This is where "Farming for Block" would take place
+            debug(`Can't survive in the map we designed, Level ${this.getTotalLevel()}`, "maps", '*crying2');
+            return false;
+        }
+
         // first set all required properties of the map
         for (const req of this.profile.required) {
             if (sliderOptions.includes(req)) {
@@ -412,6 +442,7 @@ class MapCrafter {
                 devDebug(ctx, 'Unknown map requirement', {req: req});
             }
         }
+
         if (!this.canAfford() && this.isAnUpgradeOver(currentMap)) {
             // it's already an upgrade, we should save up for it
             fragmentsNeeded = updateMapCost(true);
@@ -564,12 +595,45 @@ function isCloserTo(v1, v2, baseline) {
     return Math.abs(baseline - v1) < Math.abs(baseline - v2);
 }
 
+function humaneMapSafety(level, size = 99, diff = 1.65) {
+    //Init
+    var humaneMapSafety = getPageSetting('HumaneMapSafety');
+
+    //Only relevant during Humane Mode
+    if (!getPageSetting('HumaneMode') || humaneMapSafety === 0)
+        return true;
+
+    //Out Block Mode
+    if (humaneMapSafety < 0) {
+        //Calculates Health and Block
+        var enemyDmg = diff * calcEnemyAttack("map", this.optimalLevel);
+        var block = calcOurBlock(false, true);
+
+        //Barrier Formation
+        if (game.upgrades.Barrier.done) block *= 4;
+
+        //Checks if it can out block the map
+        if (block >= enemyDmg) return true;
+    }
+
+    //Out Last mode
+    if (humaneMapSafety > 0) {
+        //Calculates our ratio
+        var healthRatio = calcHealthRatio(false, false, "map", this.optimalLevel, diff); //TODO Fix Genes for Humane
+
+        //Checks if it's above the required threshold
+        if (healthRatio >= humaneMapSafety) return true;
+    }
+
+    return false;
+}
+
 function shouldRunUniqueMap(map) {
     const challenge = game.global.challengeActive;
     const isC2 = game.global.runningChallengeSquared;
 
     const mapData = uniqueMaps[map.name];
-    if (mapData === undefined || game.global.world < mapData.zone || getMapRatio(map) > 1) {
+    if (mapData === undefined || game.global.world < mapData.zone || getMapRatio(map) > 1 || !humaneMapSafety(map.level, map.size, map.diff)) {
         return false;
     }
     if (!isC2 && mapData.challenges.includes(challenge)) {
@@ -878,7 +942,7 @@ function getMapRatio(map, customLevel, customDiff) {
 
     //Calc
     var mapDmg = (calcHDRatio(level, "map") / diff) / getMapCutOff(true);
-    var mapHp = getMapHealthCutOff(true) / calcHealthRatio(false, true, "map", level, diff);
+    var mapHp = getMapHealthCutOff(true) / calcHealthRatio(false, true, "map", level, diff); //TODO Full genes in Humane Mode
     return Math.max(mapDmg, mapHp);
 }
 
@@ -1192,7 +1256,7 @@ function autoMap() {
             }
         }
 
-        //Bionic Wonderland I+ (Unlocks, RoboTrimp or Bionic Sniper)
+        //Bionic Wonderland I+ (Unlocks, RoboTrimp or Bionic Sniper) //TODO Humane Bionics
         bionicPool.sort(function (bionicA, bionicB) {return bionicA.level - bionicB.level});
         for (bionicMaxLevel=0; getMapRatio(undefined, 125 + 15 * bionicMaxLevel, 2.6) <= 1; bionicMaxLevel++);
         var tryBionicSniper = !game.achievements.oneOffs.finished[42] && (110 + 15*bionicMaxLevel) >= game.global.world + 45;

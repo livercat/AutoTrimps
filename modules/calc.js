@@ -199,16 +199,16 @@ function calcHealthRatio(stance, fullGeneticist, type, targetZone, mapDifficulty
     var health = calcOurHealth(stance, fullGeneticist) / formationMod;
     var block = calcOurBlock(stance) / formationMod;
 
-    //Calc for maps
-    if (type == "map") return health / Math.max(mapDifficulty * calcEnemyAttack("map", targetZone) - block, 0);
-
-    //Lead farms one zone ahead
-    if (game.global.challengeActive == "Lead" && type == "world" && game.global.world%2 == 1) targetZone++;
-
     //Explosive Daily
     const dailyExplosive = game.global.challengeActive == "Daily" && typeof game.global.dailyChallenge.explosive !== "undefined";
     if (dailyExplosive && health > block)
         expMult = dailyModifiers.explosive.getMult(game.global.dailyChallenge.explosive.strength);
+
+    //Calc for maps
+    if (type == "map") return health / Math.max(expMult * mapDifficulty * calcEnemyAttack("map", targetZone) - block, 0);
+
+    //Lead farms one zone ahead
+    if (game.global.challengeActive == "Lead" && type == "world" && game.global.world%2 == 1) targetZone++;
 
     //Enemy Damage
     var worldDamage = calcEnemyAttack("world", targetZone);
@@ -231,7 +231,9 @@ function calcHealthRatio(stance, fullGeneticist, type, targetZone, mapDifficulty
 
     //Pierce & Voids
     var pierce = (game.global.brokenPlanet) ? getPierceAmt() : 0;
-    if (!stance && game.global.formation == 3) pierce *= 2; //Cancels the influence of the Barrier Formation
+
+    //Cancels the influence of the Barrier Formation
+    if (!stance && game.global.formation == 3) pierce *= 2;
 
     //Cancel Map Health influence, even for void maps (they are set above)
     if (game.talents.mapHealth.purchased && game.global.mapsActive && type != "map") health /= 2;
