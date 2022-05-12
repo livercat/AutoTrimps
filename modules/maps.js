@@ -839,9 +839,9 @@ function runSelectedMap(mapId, madAdjective) {
 function getMapHealthCutOff(pure) {
     //Base and Spire cutOffs
     let cut = getPageSetting('NumHitsSurvived');
-    if (pure) {
-        return cut;
-    }
+
+    //Pure simply returns what is on the Map settings tab
+    if (pure) return cut;
 
     //Spire
     if (game.global.spireActive) {
@@ -853,11 +853,19 @@ function getMapHealthCutOff(pure) {
         cut *= MODULES.maps.magmaHitsSurvived;
     }
 
+    //Skip void multipliers if Voids are easier to run than a regular zone (due to pierce)
+    const regularRatio = calcHealthRatio(false, true, "world");
+    const voidRatio = calcHealthRatio(false, true, "void");
+    const skipVoidMultipliers = voidRatio >= regularRatio;
+
     //Void Map cut off - will ALSO scale with scryer, if scrying on void maps
-    if (preVoidCheck) {
+    if (preVoidCheck && !skipVoidMultipliers) {
+        //(Usually) Scry Hard II
         if (getPageSetting("scryvoidmaps")) {
             cut *= getPageSetting('ScryerHitsMult');
         }
+
+        //Regular Void Maps
         return cut * getPageSetting('VoidHitsMult');
     }
 
@@ -1240,10 +1248,11 @@ function autoMap() {
         var bionicMaxLevel = 0;
         var bionicPool = [];
 
-        //For each owned map..
+        //For each owned map...
         for (const map of game.global.mapsOwnedArray) {
-            //Check if it's unique
+            //Checks if it's unique
             if (map.noRecycle) {
+                //Checks if it should be run
                 if (shouldRunUniqueMap(map)) {
                     selectedMapId = map.id;
                     break;
