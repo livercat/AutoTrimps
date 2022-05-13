@@ -262,7 +262,7 @@ function autoStance() {
     //Stance Selector
     if (!game.global.preMapsActive && game.global.soldierHealth > 0) {
         //If no formation can survive a mega crit, it ignores it, and recalculates for a regular crit, then no crit
-        //If even that is not enough, then it ignore Explosive Daily, and finally it ignores Reflect Daily
+        //If even that is not enough, then it ignores Explosive Daily, and finally it ignores Reflect Daily
         var critPower;
         for (critPower=2; critPower >= -2; critPower--) {
             if      (survive("D", critPower))  {setFormation(2);   break;}
@@ -271,6 +271,12 @@ function autoStance() {
             else if (survive("X", critPower))  {setFormation("0"); break;}
             else if (survive("H", critPower))  {setFormation(1);   break;}
 	    }
+
+        //Humane Mode: Pauses before failing
+        const humanePause = getPageSetting("HumaneMode") && getPageSetting("HumanePauseBeforeFailing");
+        const diedOnce = game.achievements.humaneRun.progress().includes("be careful!");
+        if (humanePause && diedOnce && critPower > 2)
+            toggleSetting("pauseGame");
 
         //If it cannot survive the worst case scenario on any formation, attempt it's luck on H, if available, or X
         if (critPower < -2) {
