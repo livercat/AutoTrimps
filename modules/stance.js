@@ -264,8 +264,14 @@ function autoStance() {
         //If no formation can survive a mega crit, it ignores it, and recalculates for a regular crit, then no crit
         //If even that is not enough, then it ignores Explosive Daily, and finally it ignores Reflect Daily
         var critPower;
+        var atMaxOneShotPower = (stance) => oneShotPower(stance) == maxOneShotPower(true);
         for (critPower=2; critPower >= -2; critPower--) {
-            if      (survive("D", critPower))  {setFormation(2);   break;}
+            //Prefers more block with damage is not an issue
+            if      (survive("B", critPower) && atMaxOneShotPower("B")) {setFormation(3); break;}
+            else if (survive("XB", critPower) && atMaxOneShotPower("X")) {setFormation("0"); break;}
+
+            //Otherwise, prefers damage
+            else if (survive("D", critPower))  {setFormation(2);   break;}
             else if (survive("XB", critPower)) {setFormation("0"); break;}
             else if (survive("B", critPower))  {setFormation(3);   break;}
             else if (survive("X", critPower))  {setFormation("0"); break;}
