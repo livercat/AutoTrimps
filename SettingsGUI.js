@@ -248,7 +248,7 @@ function initializeAllSettings() {
     
     //Portal
     createSetting('AutoPortal', 'AutoPortal', 'Automatically portal. Will NOT auto-portal if you have a challenge active, the challenge setting dictates which challenge it will select for the next run. All challenge settings will portal right after the challenge ends, regardless. Helium Per Hour only <b>portals at cell 1</b> of the first level where your He/Hr went down even slightly compared to the current runs Best He/Hr. Take note, there is a Buffer option, which is like a grace percentage of how low it can dip without triggering. Setting a buffer will portal mid-zone if you exceed 5x of the buffer.  CAUTION: Selecting He/hr may immediately portal you if its lower-(use Pause AutoTrimps button to pause the script first to avoid this)', 'dropdown', 'Off', ['Off', 'Helium Per Hour', 'Balance', 'Decay', 'Electricity', 'Life', 'Crushed', 'Nom', 'Toxicity', 'Watch', 'Lead', 'Corrupted', 'Domination', 'Custom'], "Core");
-    createSetting('HeliumHourChallenge', 'Portal Challenge', 'Automatically portal into this challenge when using helium per hour or custom autoportal. Custom portals after cell 100 of the zone specified. Do not choose a challenge if you havent unlocked it. ', 'dropdown', 'None', ['None', 'Balance', 'Decay', 'Electricity', 'Life', 'Crushed', 'Nom', 'Toxicity', 'Watch', 'Lead', 'Corrupted', 'Domination'], "Core");
+    createSetting('HeliumHourChallenge', 'Portal Challenge', 'Automatically portal into this challenge when using helium per hour or custom autoportal. Custom portals after cell 100 of the zone specified. Do not choose a challenge if you havent unlocked it. ', 'dropdown', 'None', ['None', 'Balance', 'Decay', 'Electricity', 'Life', 'Crushed', 'Nom', 'Toxicity', 'Watch', 'Lead', 'Corrupted', 'Domination', 'Experience'], "Core");
     document.getElementById("HeliumHourChallengeLabel").innerHTML = "Portal Challenge:";
     createSetting('CustomAutoPortal', 'Custom Portal', 'Automatically portal AFTER clearing this level. <b>(ie: setting to 200 would portal when you reach level 201)</b>', 'value', '999', null, "Core");
     createSetting('HeHrDontPortalBefore', 'Don\'t Portal Before', 'Do NOT allow Helium per Hour AutoPortal setting to portal BEFORE this level is reached. It is an additional check that prevents drops in helium/hr from triggering autoportal. Set to 0 or -1 to completely disable this check. (only shows up with Helium per Hour set)', 'value', '999', null, "Core");
@@ -353,7 +353,7 @@ function initializeAllSettings() {
     createSetting('AutoStartDaily', 'Auto Start Daily', 'Starts Dailies for you. When you portal with this on, it will select the oldest Daily and run it. Use the settings in this tab to decide whats next. ', 'boolean', false, null, 'Daily');
     createSetting('u2daily', 'Daily in U2', 'If this is on, you will do your daily in U2. ', 'boolean', false, null, 'Daily');
     createSetting('AutoPortalDaily', ['Daily Portal Off', 'DP: He/Hr', 'DP: Custom'], '<b>DP: He/Hr:</b> Portals when your world zone is above the minium you set (if applicable) and the buffer falls below the % you have defined. <br><b>DP: Custom:</b> Portals after clearing the zone you have defined in Daily Custom Portal. ', 'multitoggle', '0', null, "Daily");
-    createSetting('dHeliumHourChallenge', 'DP: Challenge', 'Automatically portal into this challenge when using helium per hour or custom autoportal in dailies when there are none left. Custom portals after cell 100 of the zone specified. Do not choose a challenge if you havent unlocked it. ', 'dropdown', 'None', ['None', 'Balance', 'Decay', 'Electricity', 'Life', 'Crushed', 'Nom', 'Toxicity', 'Watch', 'Lead', 'Corrupted', 'Domination'], "Daily");
+    createSetting('dHeliumHourChallenge', 'DP: Challenge', 'Automatically portal into this challenge when using helium per hour or custom autoportal in dailies when there are none left. Custom portals after cell 100 of the zone specified. Do not choose a challenge if you havent unlocked it. ', 'dropdown', 'None', ['None', 'Balance', 'Decay', 'Electricity', 'Life', 'Crushed', 'Nom', 'Toxicity', 'Watch', 'Lead', 'Corrupted', 'Domination', 'Experience'], "Daily");
     createSetting('dCustomAutoPortal', 'Daily Custom Portal', 'Automatically portal AFTER clearing this level in dailies. (ie: setting to 200 would portal when you first reach level 201)', 'value', '999', null, "Daily");
     createSetting('dHeHrDontPortalBefore', 'D: Don\'t Portal Before', 'Do NOT allow Helium per Hour Daily AutoPortal setting to portal BEFORE this level is reached in dailies. It is an additional check that prevents drops in helium/hr from triggering autoportal in dailies. Set to 0 or -1 to completely disable this check. (only shows up with Helium per Hour set in dailies)', 'value', '999', null, "Daily");
     createSetting('dHeliumHrBuffer', 'D: He/Hr Portal Buffer %', 'IMPORTANT SETTING. When using the Daily He/Hr Autoportal, it will portal if your He/Hr drops by this amount of % lower than your best for current run in dailies, default is 0% (ie: set to 5 to portal at 95% of your best in dailies). Now with stuck protection - Allows portaling midzone if we exceed set buffer amount by 5x. (ie a normal 2% buffer setting would now portal mid-zone you fall below 10% buffer).', 'value', '0', null, 'Daily');
@@ -538,10 +538,10 @@ function initializeAllSettings() {
     createSetting('AutoMaps', ["Auto Maps Off", "Auto Maps On", "Auto Maps No Unique"], 'Automaps. The no unique setting will not run unique maps such as dimensions of anger. Recommended ON. Do not use MaZ, it will not work. ', 'multitoggle', 1, null, "Maps");
     createSetting('automapsportal', 'AM Portal', 'Makes sure Auto Maps is on after portalling. Turn this off to disable this and remember your choice. ', 'boolean', true, null, 'Maps');
     createSetting('LowerFarmingZone', 'Lower Farming Zone', 'Lowers the zone used during Farming mode. Uses the dynamic siphonology code, to Find the minimum map level you can successfully one-shot, and uses this level for any maps done after the first 10 map stacks. The difference being it goes LOWER than what Siphonology gives you map-bonus for, but after 10 stacks you dont need bonus, you just want to do maps that you can one-shot. Goes as low as 10 below current zone if your damage is that bad, but this is extreme and indicates you should probably portal.', 'boolean', true, null, 'Maps');
-    createSetting('FarmWhenNomStacks7', 'Farm on >7 NOMstacks', 'Optional. If Improbability already has 5 NOMstacks, stack 30 Anticipation. If the Improbability has >7 NOMstacks on it, get +200% dmg from MapBonus. If we still cant kill it, enter Farming mode at 30 stacks, Even with DisableFarming On! (exits when we get under 10x). Farms if we hit 100 stacks in the world. If we ever hit (100) nomstacks in a map (likely a voidmap), farm, (exit the voidmap) and (prevent void from running, until situation is clear). Restarts any voidmaps if we hit 100 stacks. ', 'boolean', false, null, 'Maps');
     createSetting('FarmOnLowHealth', 'Farm On Low Health', "If your trimps do not have enough health to pass the Num Hits Survived criteria, then it will activate farming mode, which means it will stay on maps after getting its map stacks. Recommended: Always on. Lower your Num Hits Survived if you needed.", 'boolean', true, null, 'Maps');
     createSetting('TrimpleZ', 'Trimple Z', 'I don\'t really think doing this automatically is a good idea. You might want to farm for a bit before this, but I\'m not sure if it\'s meaningful at all to make a \'farm X minutes before trimple\' parameter to go along with it. Set it to the zone you want and it will run Trimple of Doom for Ancient Treasure AFTER farming and getting map stacks. If it is a negative number, this will be disabled after a successful run so you can set it differently next time.', 'valueNegative', 0, null, 'Maps');
     createSetting('MaxMapBonusAfterZone', 'Max MapBonus After', 'Always gets Max Map Bonus from this zone on. (inclusive and after).<br><b>NOTE:</b> Set -1 to disable entirely (default). Set 0 to use it always.<br><b>Advanced:</b>User can set a lower number than the default 10 maps with the AT hidden console command: MODULES[\\"maps\\"].maxMapBonusAfterZ = 9;', 'value', '-1', null, 'Maps');
+    document.getElementById('MaxMapBonusAfterZone').parentNode.insertAdjacentHTML('afterend', '<br>');
 
     //Line 2
     createSetting('MaxMapBonuslimit', 'Max MapBonus Limit', 'Limit the amount of Map Bonuses you get. Default is 10. ', 'value', '10', null, 'Maps');
@@ -700,8 +700,27 @@ function initializeAllSettings() {
 
 
     //Challenges
-    createSetting('DecayStacksToPush', 'Decay: Stacks to Push', 'During Decay, AT will ignore maps and push to end the zone if we go above this amount of stacks.<br><br>Use -1 or 0 to disable.<br>Defaults to 300.', 'value', '300', null, 'Challenges');
-    createSetting('DecayStacksToAbandon', 'Decay: Stacks to Abandon', 'During Decay, AT will abandon the challenge if we go above this amount of stacks.<br><br>Use -1 or 0 to disable.<br>Defaults to 300.', 'value', '600', null, 'Challenges');
+    createSetting('ChallengeSpecificSettings', 'Challenge', 'Configure challenge-specific settings.',
+        'dropdown',  '---',
+        ['---', 'Decay', 'Nom', 'Experience'],
+        "Challenges");
+    createSetting('DecayStacksToPush', 'Stacks to Push',
+        'During Decay, AT will ignore maps and push to end the zone if we go above this amount of stacks.<br><br>' +
+        'Use -1 or 0 to disable.<br>Defaults to 300.', 'value', '300', null, 'Challenges');
+    createSetting('DecayStacksToAbandon', 'Stacks to Abandon',
+        'During Decay, AT will abandon the challenge if we go above this amount of stacks.<br><br>' +
+        'Use -1 or 0 to disable.<br>Defaults to 600.', 'value', '600', null, 'Challenges');
+    createSetting('FarmWhenNomStacks7','Farm on >7 NOMstacks',
+        'Optional. If Improbability already has 5 NOMstacks, stack 30 Anticipation. ' +
+        'If the Improbability has >7 NOMstacks on it, get +200% dmg from MapBonus. If we still cant kill it, ' +
+        'enter Farming mode at 30 stacks, Even with DisableFarming On! (exits when we get under 10x). ' +
+        'Farms if we hit 100 stacks in the world. If we ever hit (100) nomstacks in a map (likely a voidmap), farm, ' +
+        '(exit the voidmap) and (prevent void from running, until situation is clear). ' +
+        'Restarts any voidmaps if we hit 100 stacks.',
+        'boolean', false, null, 'Challenges');
+    createSetting('ExpForceWondersZone', 'Force Wonders Zone',
+        'Starting from this zone, AT will make sure to get a new wonder every 5 zones.<br><br>' +
+        'Use -1 or 0 to disable.<br>Defaults to -1.', 'value', '-1', null, 'Challenges');
 
     //RChallenges
 	//Quagmire - Black Bogs
@@ -1803,9 +1822,22 @@ function updateCustomButtons() {
     
     
 	//Challenges
-    //Decay
-    !radonon && game.global.challengeActive == "Decay" ? turnOn("DecayStacksToPush") : turnOff("DecayStacksToPush");
-    !radonon && game.global.challengeActive == "Decay" ? turnOn("DecayStacksToAbandon") : turnOff("DecayStacksToAbandon");
+    // U1 challenges
+    const challenges = {
+        "Decay": ["DecayStacksToPush", "DecayStacksToAbandon"],
+        "Nom": ["FarmWhenNomStacks7"],
+        "Experience": ["ExpForceWondersZone"],
+    }
+    // first, hide all challenge-specific settings
+    Object.values(challenges).forEach(settings => settings.forEach(s => turnOff(s)));
+    if (!radonon) {
+        // then show only the relevant settings
+        turnOn("ChallengeSpecificSettings");
+        const settings = challenges[getPageSetting("ChallengeSpecificSettings")];
+        if (settings) {
+            settings.forEach(s => turnOn(s));
+        }
+    }
 
     //RChallenges
 	//Quagmire - Black Bogs

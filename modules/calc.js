@@ -695,6 +695,9 @@ function calcEnemyAttackCore(type, zone, cell, name, minOrMax, customAttack) {
     else if (game.global.challengeActive == "Watch")      attack *= 1.25;
     else if (game.global.challengeActive == "Corrupted")  attack *= 3;
     else if (game.global.challengeActive == "Scientist" && getScientistLevel() == 5) attack *= 10;
+    else if (game.global.challengeActive === "Experience") {
+        attack *= game.challenges.Experience.getEnemyMult();
+    }
 
     //Coordinate
     if (game.global.challengeActive == "Coordinate") {
@@ -745,6 +748,9 @@ function calcEnemyAttack(type, zone, cell = 99, name = "Snimp", minOrMax) {
     else if (game.global.challengeActive == "Toxicity")   attack *= 5;
     else if (game.global.challengeActive == "Lead")       attack *= (zone%2 == 0) ? 5.08 : (1 + 0.04 * game.challenges.Lead.stacks);
     else if (game.global.challengeActive == "Domination") attack *= 2.5;
+    else if (game.global.challengeActive === "Experience") {
+        attack *= game.challenges.Experience.getEnemyMult();
+    }
 
     //Dailies
     else if (game.global.challengeActive == "Daily") {
@@ -876,10 +882,17 @@ function calcEnemyHealthCore(type, zone, cell, name, customHealth) {
     if (customHealth) health = customHealth;
 
     //Challenges
-    if (game.global.challengeActive == "Balance")    health *= 2;
-    if (game.global.challengeActive == "Meditate")   health *= 2;
-    if (game.global.challengeActive == "Toxicity")   health *= 2;
-    if (game.global.challengeActive == "Life")       health *= 11;
+    if (game.global.challengeActive === "Balance") {
+        health *= 2;
+    } else if (game.global.challengeActive === "Meditate") {
+        health *= 2;
+    } else if (game.global.challengeActive === "Toxicity") {
+        health *= 2;
+    } else if (game.global.challengeActive === "Life") {
+        health *= 11;
+    } else if (game.global.challengeActive === "Experience") {
+        health *= game.challenges.Experience.getEnemyMult();
+    }
 
     //Coordinate
     if (game.global.challengeActive == "Coordinate") {

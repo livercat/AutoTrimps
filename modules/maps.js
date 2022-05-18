@@ -136,6 +136,9 @@ const profiles = Object.freeze({
         ],
         mods: ['fa']
     },
+    wonders: {
+        copy: 'mapCompletion'
+    },
     preVoidFarming: {
         copy: 'farming'
     }
@@ -143,13 +146,14 @@ const profiles = Object.freeze({
 const cacheMods = ['lmc', 'hc', 'smc', 'lc'];
 
 class MappingProfile {
-    constructor(vmStatus, isFarming, needMetal, needPrestige, shouldFarmLowerZone, minLevel = undefined) {
+    constructor(vmStatus, isFarming, needMetal, needPrestige, needWonder, shouldFarmLowerZone, minLevel = undefined) {
         this.mods = [];
 
         this.z = game.global.world;
         this.hze = getHighestLevelCleared();
         this.haveMapReducer = game.talents.mapLoot.purchased;
         this.needPrestige = needPrestige;
+        this.needWonder = needWonder;
 
         const siphonology = game.portal.Siphonology.level;
 
@@ -157,6 +161,8 @@ class MappingProfile {
         let calculatedMinLevel = this.z;
         if (needPrestige) {
             this.name = 'prestige';
+        } else if (needWonder) {
+            this.name = 'wonders';
         } else if (isFarming) {
             calculatedMinLevel = this.z - (shouldFarmLowerZone ? 11 : siphonology);
             this.name = 'farming';
@@ -201,44 +207,48 @@ class MappingProfile {
         }
 
         // Calculate optimal map level
-        this.optimalLevel = Math.max(this.minLevel, 6);
-        for (this.optimalLevel; this.optimalLevel < this.baseLevel; this.optimalLevel++) {
-            let ratio = calcHDRatio(this.optimalLevel, "map");
-            if (game.unlocks.imps.Titimp) {
-                ratio /= 2;
-            }
-            // Stance priority: Scryer > Dominance > X
-            if (this.z >= 60 && this.hze >= 180) {
-                ratio *= 2;
-            } else if (game.upgrades.Dominance.done) {
-                ratio /= 4;
-            }
-            // Stop increasing map level once HD ratio is too large
-            if ((this.z <= 40 && ratio > 1.5) || ratio > 1.2) {
-                break;
-            }
-        }
-        // Keep increasing map level while we can overkill
-        const extraMapLevelsAvailable = this.hze >= 209;
-        if (!extraMapLevelsAvailable) {
-            // can't increase map levels yet
-            this.optimalLevel = Math.min(this.optimalLevel, this.z);
+        if (this.name === 'wonders') {
+            this.optimalLevel = this.minLevel;
         } else {
-            if (extraMapLevelsAvailable && this.optimalLevel >= this.baseLevel) {
-                const maxOneShotCells = maxOneShotPower();
-                while (oneShotZone(this.optimalLevel + 1, "map", "S") >= maxOneShotCells) {
+            this.optimalLevel = Math.max(this.minLevel, 6);
+            for (this.optimalLevel; this.optimalLevel < this.baseLevel; this.optimalLevel++) {
+                let ratio = calcHDRatio(this.optimalLevel, "map");
+                if (game.unlocks.imps.Titimp) {
+                    ratio /= 2;
+                }
+                // Stance priority: Scryer > Dominance > X
+                if (this.z >= 60 && this.hze >= 180) {
+                    ratio *= 2;
+                } else if (game.upgrades.Dominance.done) {
+                    ratio /= 4;
+                }
+                // Stop increasing map level once HD ratio is too large
+                if ((this.z <= 40 && ratio > 1.5) || ratio > 1.2) {
+                    break;
+                }
+            }
+            // Keep increasing map level while we can overkill
+            const extraMapLevelsAvailable = this.hze >= 209;
+            if (!extraMapLevelsAvailable) {
+                // can't increase map levels yet
+                this.optimalLevel = Math.min(this.optimalLevel, this.z);
+            } else {
+                if (extraMapLevelsAvailable && this.optimalLevel >= this.baseLevel) {
+                    const maxOneShotCells = maxOneShotPower();
+                    while (oneShotZone(this.optimalLevel + 1, "map", "S") >= maxOneShotCells) {
+                        this.optimalLevel++;
+                    }
+                }
+                if (game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
+                    // Prefer "Oneshot level" + 1, except on magma or in Coordinated challenge
                     this.optimalLevel++;
                 }
             }
-            if (game.global.challengeActive !== "Coordinate" && !mutations.Magma.active()) {
-                // Prefer "Oneshot level" + 1, except on magma or in Coordinated challenge
-                this.optimalLevel++;
+            // if we have Map Reducer and there's nothing useful in the optimal map level, consider lowering it
+            const canUseMapReducer = (this.optimalLevel === this.z) && (this.minLevel <= this.baseLevel);
+            if (this.haveMapReducer && canUseMapReducer && !mapLevelHasPrestiges(this.optimalLevel)) {
+                this.optimalLevel = this.baseLevel;
             }
-        }
-        // if we have Map Reducer and there's nothing useful in the optimal map level, consider lowering it
-        const canUseMapReducer = (this.optimalLevel === this.z) && (this.minLevel <= this.baseLevel);
-        if (this.haveMapReducer && canUseMapReducer && !mapLevelHasPrestiges(this.optimalLevel)) {
-            this.optimalLevel = this.baseLevel;
         }
 
         for (const mod of profile.mods) {
@@ -748,6 +758,8 @@ function updateAutoMapsStatus(get, hdStats, vmStatus, mappingProfile) {
         status = 'Max Map Bonus After Zone';
     } else if (mappingProfile && mappingProfile.needPrestige) {
         status = 'Prestige';
+    } else if (mappingProfile && mappingProfile.needWonder) {
+        status = 'Looking for a wonder';
     } else {
         const wantedHealth = (healthCutoff / hitsSurvived).toFixed(2);
         const wantedFarmDmg = (hdStats.hdRatio / farmingCutoff).toFixed(2);
@@ -1194,7 +1206,6 @@ function autoMap(hdStats, vmStatus) {
     }
 
     //Spire
-    let shouldDoSpireMaps = false;
     preSpireFarming = (isActiveSpireAT() || disActiveSpireAT()) && (spireTime = (new Date().getTime() - game.global.zoneStarted) / 1000 / 60) < getPageSetting('MinutestoFarmBeforeSpire');
     spireMapBonusFarming = getPageSetting('MaxStacksForSpire') && (isActiveSpireAT() || disActiveSpireAT()) && game.global.mapBonus < 10;
     if (preSpireFarming || spireMapBonusFarming) {
@@ -1208,10 +1219,18 @@ function autoMap(hdStats, vmStatus) {
         shouldDoMaps = true;
     }
 
+    let needWonder = false;
+    const forceWondersZone = getPageSetting("ExpForceWondersZone");
+    if (game.global.challengeActive === "Experience" && forceWondersZone > 0 && z >= forceWondersZone && z >= game.challenges.Experience.nextWonder) {
+        shouldDoMaps = true;
+        minMapLevel = z;
+        needWonder = true;
+    }
+
     const isFarming = (shouldFarm || shouldFarmDamage || !enoughHealth || preSpireFarming || (vmStatus.prepareForVoids && !enoughDamage));
     const needMetal = isFarming || (!enoughHealth && !armorCapped() || !enoughDamage && !weaponCapped());
 
-    let mappingProfile = new MappingProfile(vmStatus, isFarming, needMetal, needPrestige, shouldFarmLowerZone, minMapLevel);
+    let mappingProfile = new MappingProfile(vmStatus, isFarming, needMetal, needPrestige, needWonder, shouldFarmLowerZone, minMapLevel);
     const runUniques = (getPageSetting('AutoMaps') === 1);
     const onlyStackedVoids = getPageSetting('onlystackedvoids');
 
@@ -1327,7 +1346,9 @@ function autoMap(hdStats, vmStatus) {
                     }
                 }
             }
-            if (needPrestige && currentMapPrestiges >= countPrestigesInMap()) {
+            if (needWonder) {
+                // continue looking for a wonder
+            } else if (needPrestige && currentMapPrestiges >= countPrestigesInMap()) {
                 // no more prestiges left in the current map after we finish it
                 repeatClicked();
             } else if (shouldDoHealthMaps && game.global.mapBonus >= (maxStacksForHP - 1)) {
@@ -1379,7 +1400,7 @@ function autoMap(hdStats, vmStatus) {
                     mapsClicked();
                 } else if (autoAbandon === 0) {
                     const haveEnoughTrimps = game.resources.trimps.realMax() <= game.resources.trimps.owned + 1;
-                    if (needPrestige || haveEnoughTrimps) {
+                    if (needPrestige || needWonder || haveEnoughTrimps) {
                         mapsClicked();
                     }
                     const farmOnOddZone = ((game.global.challengeActive === 'Lead' && !challSQ) && z % 2 === 1);
